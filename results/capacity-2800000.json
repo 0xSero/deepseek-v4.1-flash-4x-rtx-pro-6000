@@ -1,0 +1,15 @@
+{
+  "requests": 7,
+  "input_tokens_per_request": 400000,
+  "total_input_tokens": 2800000,
+  "output_tokens_per_request": 8192,
+  "errors": [],
+  "shared_decode_seconds": 74.47520777396858,
+  "total_decode_tps": 721.2064471577619,
+  "median_per_request_decode_tps": 103.68551133735919,
+  "effective_prefill_tps": 6352.587050312362,
+  "peak_populated_tokens_seven_running": 2853120,
+  "seven_running_runtime_samples": 35,
+  "manifest_sha256": "6cbe93af590f5854b08245d2cc15ec2d7c9df9be4ff08d20eabb77956783dae8",
+  "workload": "Synthetic capacity stress, ignore_eos=true; not a quality benchmark"
+}

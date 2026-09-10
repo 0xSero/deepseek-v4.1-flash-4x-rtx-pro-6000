@@ -44,3 +44,13 @@ Total decode is the sum of actual token deliveries across all requests over the 
 | 400000 | 4 | 6168.66 | 425.04 | 106.29 | 9.54 | 4 |
 | 400000 | 6 | 6178.22 | 500.57 | 83.36 | 11.69 | 6 |
 | 400000 | 8 | 6045.83 | — | — | 0.00 | 7 |
+
+## Sustained populated KV capacity
+
+A separate synthetic stress run used seven distinct-prefix 400,000-token inputs and forced 8,192 output tokens each (`ignore_eos=true`). All seven completed without request errors. Runtime logs recorded 2,853,120 populated full tokens with seven requests decoding and CUDA graphs active. Allocated pool: 2,865,664 logical tokens. Native checkpoint and KV formats were unchanged; this is not an all-FP8 weight conversion.
+
+| Input tokens/request | Concurrent requests | Effective prefill tok/s | Total decode tok/s | Median decode tok/s/request | Shared decode seconds |
+|---:|---:|---:|---:|---:|---:|
+| 400,000 | 7 | 6,352.59 | 721.21 | 103.69 | 74.48 |
+
+See [machine-readable result](capacity-2800000.json). Decode counts actual delivered token IDs over the same overlapping interval for all seven streams. This establishes capacity and synthetic throughput, not response quality; its forced-length workload differs from the matrix above.
