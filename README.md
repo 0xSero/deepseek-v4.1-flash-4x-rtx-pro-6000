@@ -136,3 +136,9 @@ For controller integration, `SERVER_PORT` selects the server and health-check po
 ### Local Studio long-context proxy limit
 
 The tested controller rejected an officially encoded400,049-token chat before reaching the engine: its heuristic estimated466,663 tokens against a368,640-token soft ceiling. Short controller chats passed, but400k proxy conversations are **not qualified**. The model itself passed400k inputs and six simultaneous400k requests. For long contexts, use the authenticated engine endpoint directly (port8000 in the Studio recipe;8010 in default Compose). Do not treat the controller soft limit as the model capacity.
+
+### Capacity and sustained concurrency controls
+
+`MEMORY_FRACTION` (default `0.85`), `MAX_RUNNING_REQUESTS` (default `8`), and optional `MAX_TOTAL_TOKENS` control the allocation. The launcher retains DSpark block5 and sets `--min-free-slots-delay 1`: the upstream DSpark admission delay otherwise leaves the final slot idle until another request finishes. Higher memory fractions require real prefill validation. An uncapped0.93 trial allocated7.62M logical tokens but failed its first generation on a temporary attention-buffer allocation; allocated tokens are not usable capacity proof.
+
+The benchmark accepts `OUTPUT_TOKENS`, `IGNORE_EOS`, and `API_BASE`. Use the same values for every storage candidate. Sustained forced-length runs are synthetic performance measurements, not quality evaluations. Every row now includes actual total and median per-request decode throughput over a shared interval, plus its duration. Results are blank if all requested streams did not overlap. The active4M qualification and expanded storage comparison are pending; existing published results retain their original settings.

@@ -18,6 +18,10 @@ from encoding import encode_messages
 tokenizer = Tokenizer.from_file(str(model/'tokenizer.json'))
 manifest = Path(os.environ.get('MANIFEST_PATH',str(state/'launch.json')))
 identity = hashlib.sha256(manifest.read_bytes()).hexdigest()
+output_budget = int(os.environ.get('OUTPUT_TOKENS','1024'))
+ignore_eos = os.environ.get('IGNORE_EOS','0') == '1'
+api_base = os.environ.get('API_BASE','http://127.0.0.1:8010').rstrip('/')
+assert 641 <= output_budget <= 8192
 sizes = [int(x) for x in os.environ.get('PREFILL_SIZES','512,2048,8192,32768,65536,131072,200000,400000').split(',')]
 concurrencies = [int(x) for x in os.environ.get('CONCURRENCIES','1,2,4,8').split(',')]
 folder = state/('matrix-'+time.strftime('%Y%m%dT%H%M%S'))
@@ -42,11 +46,11 @@ def one(size,index,wave_start):
     ids = prefix+(filler*(room//len(filler)+1))[:room]+suffix
     assert len(ids) == size
     result = dict(index=index,prompt_tokens=size,nonce=nonce,manifest_sha256=identity,
-        started_s=time.monotonic()-wave_start,events=[],output_budget=1024)
+        started_s=time.monotonic()-wave_start,events=[],output_budget=output_budget,ignore_eos=ignore_eos)
     try:
-        req = urllib.request.Request('http://127.0.0.1:8010/generate',headers=headers,
+        req = urllib.request.Request(api_base+'/generate',headers=headers,
             data=json.dumps(dict(input_ids=ids,stream=True,
-                sampling_params={'temperature':0,'max_new_tokens':1024})).encode())
+                sampling_params={'temperature':0,'max_new_tokens':output_budget,'ignore_eos':ignore_eos})).encode())
         with urllib.request.urlopen(req,timeout=2400) as response:
             previous = []
             for line in response:
@@ -78,12 +82,12 @@ def render():
         'Effective prefill includes queuing and mixed decode work until the last request reaches its first token. '
         'Decode is the median per-request rate over emitted tokens 129–641, including serving stalls. '
         'Concurrency is requested burst size; client overlap records how many streams had emitted tokens and remained unfinished. '
-        'Synthetic repeated notes, unique prefixes, 1,024-token output budget; this is not a quality test.','',
-        '| Input tokens/request | Requested C | Effective prefill tok/s | Median TTFT s | Median decode tok/s/request | Peak client overlap | Success |',
+        f'Synthetic repeated notes, unique prefixes, {output_budget:,}-token output budget, ignore_eos={ignore_eos}; this is not a quality test.','',
+        '| Input tokens/request | Requested C | Effective prefill tok/s | Median TTFT s | Median decode tok/s/request | Total shared decode tok/s | Shared decode tok/s/request | Shared seconds | Peak client overlap | Success |',
         '|---:|---:|---:|---:|---:|---:|---:|']
     for r in all_summaries:
         def fmt(k): return f'{r[k]:.2f}' if r.get(k) is not None else '—'
-        lines.append(f"| {r['input_tokens']} | {r['concurrency']} | {fmt('effective_prefill_tps')} | {fmt('median_ttft_s')} | {fmt('median_decode_tps')} | {r['peak_client_overlap']} | {r['successes']}/{r['concurrency']} |")
+        lines.append(f"| {r['input_tokens']} | {r['concurrency']} | {fmt('effective_prefill_tps')} | {fmt('median_ttft_s')} | {fmt('median_decode_tps')} | {fmt('total_decode_tps')} | {fmt('shared_decode_tps_per_request')} | {fmt('shared_decode_seconds')} | {r['peak_client_overlap']} | {r['successes']}/{r['concurrency']} |")
     (folder/'TABLE.md').write_text('\n'.join(lines)+'\n')
 
 print(str(folder),flush=True)
@@ -106,6 +110,24 @@ for size in sizes:
             median_ttft_s=statistics.median(r['ttft_s'] for r in good) if good else None,
             median_decode_tps=statistics.median(rates) if rates else None,
             errors=[r['error'] for r in records if r.get('error')])
+        summary.update(total_decode_tps=None,shared_decode_tps_per_request=None,shared_decode_seconds=0)
+        if len(good) == concurrency:
+            timelines = []
+            for record in good:
+                previous = 0
+                timeline = []
+                for event in record['events']:
+                    count = event['count']
+                    if count > previous:
+                        timeline.append((event['seconds'],count-previous))
+                    previous = count
+                timelines.append(timeline)
+            if all(timelines):
+                begin = max(t[0][0] for t in timelines)
+                end = min(t[-1][0] for t in timelines)
+                if end > begin:
+                    shared_rates = [sum(n for timestamp,n in t if begin < timestamp <= end)/(end-begin) for t in timelines]
+                    summary.update(total_decode_tps=sum(shared_rates),shared_decode_tps_per_request=statistics.median(shared_rates),shared_decode_seconds=end-begin)
         all_summaries.append(summary)
         (folder/'summary.json').write_text(json.dumps(all_summaries,indent=2))
         render()

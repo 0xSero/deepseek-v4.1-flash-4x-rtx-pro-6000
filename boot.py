@@ -137,6 +137,10 @@ def serve():
     mode = os.environ.get('OFFLOAD_MODE','nvme')
     assert mode in ('nvme','ram'), 'OFFLOAD_MODE must be nvme or ram'
     context = int(os.environ.get('CONTEXT_LENGTH','409600'))
+    concurrency = int(os.environ.get('MAX_RUNNING_REQUESTS','8'))
+    assert 1 <= concurrency <= 32, 'MAX_RUNNING_REQUESTS must be between 1 and 32'
+    memory_fraction = float(os.environ.get('MEMORY_FRACTION','0.85'))
+    assert 0.5 <= memory_fraction <= 0.95, 'MEMORY_FRACTION must be between 0.5 and 0.95'
     assert 400000 <= context <= 1048576, 'Context must be 400k through the model limit 1048576'
     gpu = subprocess.check_output(['nvidia-smi','--query-gpu=name,memory.total',
         '--format=csv,noheader,nounits'],text=True).strip().splitlines()
@@ -151,11 +155,15 @@ def serve():
     args = ['--model-path',str(MODEL),'--served-model-name','deepseek-v4.1-flash',
         '--trust-remote-code','--load-format','safetensors','--tp','4','--ep-size','4',
         '--attention-backend','dsv4','--moe-runner-backend','flashinfer_mxfp4',
-        '--mem-fraction-static','0.85','--chunked-prefill-size','2048',
-        '--context-length',str(context),'--max-running-requests','8','--cuda-graph-max-bs-decode','8',
-        '--random-seed','0','--speculative-algorithm','DSPARK','--speculative-dspark-block-size','5',
+        '--mem-fraction-static',str(memory_fraction),'--chunked-prefill-size','2048',
+        '--context-length',str(context),'--max-running-requests',str(concurrency),'--cuda-graph-max-bs-decode',str(concurrency),
+        '--min-free-slots-delay','1','--random-seed','0','--speculative-algorithm','DSPARK','--speculative-dspark-block-size','5',
         '--enable-decoder-swa-bounded-replay','--tool-call-parser','deepseekv41',
         '--reasoning-parser','deepseek-v41','--host','0.0.0.0','--port',str(PORT)]
+    if os.environ.get('MAX_TOTAL_TOKENS'):
+        total_tokens = int(os.environ['MAX_TOTAL_TOKENS'])
+        assert total_tokens >= context, 'MAX_TOTAL_TOKENS must cover CONTEXT_LENGTH'
+        args.extend(['--max-total-tokens',str(total_tokens)])
     save('launch.json',{'revision':REVISION,'offload_mode':mode,'args':args,'gpus':gpu})
     secret = key()
     env = dict(os.environ,DSV41_SOURCE=str(MODEL))
