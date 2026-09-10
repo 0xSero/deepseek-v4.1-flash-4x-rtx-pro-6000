@@ -488,5 +488,61 @@
     "total_decode_tps": 723.6498614966684,
     "shared_decode_tps_per_request": 93.24840509576556,
     "shared_decode_seconds": 86.17841765494086
+  },
+  {
+    "input_tokens": 400000,
+    "concurrency": 1,
+    "successes": 1,
+    "peak_client_overlap": 1,
+    "manifest_sha256": "f0328e587fb2da370db6bd72ca52504cd512dc197bd57a3461b7d2685f61248d",
+    "effective_prefill_tps": 6081.4102720496985,
+    "median_ttft_s": 65.77045327285305,
+    "median_decode_tps": 178.49297420016538,
+    "errors": [],
+    "total_decode_tps": 220.215803941055,
+    "shared_decode_tps_per_request": 220.215803941055,
+    "shared_decode_seconds": 37.19533227593638
+  },
+  {
+    "input_tokens": 400000,
+    "concurrency": 2,
+    "successes": 2,
+    "peak_client_overlap": 2,
+    "manifest_sha256": "f0328e587fb2da370db6bd72ca52504cd512dc197bd57a3461b7d2685f61248d",
+    "effective_prefill_tps": 6162.611100230198,
+    "median_ttft_s": 97.55671247199643,
+    "median_decode_tps": 138.59112504190912,
+    "errors": [],
+    "total_decode_tps": 347.63932649303763,
+    "shared_decode_tps_per_request": 173.81966324651881,
+    "shared_decode_seconds": 47.07752763503231
+  },
+  {
+    "input_tokens": 400000,
+    "concurrency": 4,
+    "successes": 4,
+    "peak_client_overlap": 4,
+    "manifest_sha256": "f0328e587fb2da370db6bd72ca52504cd512dc197bd57a3461b7d2685f61248d",
+    "effective_prefill_tps": 6165.492507466478,
+    "median_ttft_s": 162.73340480099432,
+    "median_decode_tps": 107.38317652468012,
+    "errors": [],
+    "total_decode_tps": 506.0530174387425,
+    "shared_decode_tps_per_request": 126.8592842715291,
+    "shared_decode_seconds": 63.57831865688786
+  },
+  {
+    "input_tokens": 400000,
+    "concurrency": 6,
+    "successes": 6,
+    "peak_client_overlap": 6,
+    "manifest_sha256": "f0328e587fb2da370db6bd72ca52504cd512dc197bd57a3461b7d2685f61248d",
+    "effective_prefill_tps": 6173.8481110333605,
+    "median_ttft_s": 227.10551088990178,
+    "median_decode_tps": 93.03261479218233,
+    "errors": [],
+    "total_decode_tps": 596.4496365206886,
+    "shared_decode_tps_per_request": 101.16622413430358,
+    "shared_decode_seconds": 77.36277662799694
   }
 ]
