@@ -56,4 +56,19 @@ for r in results:
         return f'{r[key]:.2f}' if r.get(key) is not None else '—'
     lines.append(f"| {r['input_tokens']} | {r['concurrency']} | {fmt('duration_s')} | {fmt('aggregate_decode_tps')} | {fmt('median_decode_tps')} | {r['status']} |")
 (folder/'COMMON-WINDOW.md').write_text('\n'.join(lines)+'\n')
+summaries = {(r['input_tokens'],r['concurrency']):r for r in json.loads((folder/'summary.json').read_text())}
+combined = ['# Prefill and total decode speed','',
+    'Total decode is the sum of actual token deliveries across all requests over the same shared wall-clock interval. Per-request decode is the median over that identical interval. Prefill is effective burst prefill including queueing and mixed decode. A dash means the wave never had all requested streams decoding simultaneously; it is not zero throughput.','',
+    '| Input tokens/request | Requested C | Prefill tok/s | Total decode tok/s | Decode tok/s/request | Shared seconds | Peak overlap |',
+    '|---:|---:|---:|---:|---:|---:|---:|']
+for r in results:
+    s = summaries.get((r['input_tokens'],r['concurrency']))
+    if s is None:
+        continue
+    total = f"{r['aggregate_decode_tps']:.2f}" if r.get('aggregate_decode_tps') is not None else '—'
+    median = f"{r['median_decode_tps']:.2f}" if r.get('median_decode_tps') is not None else '—'
+    prefill = f"{s['effective_prefill_tps']:.2f}" if s.get('effective_prefill_tps') is not None else '—'
+    duration = f"{r.get('duration_s',0):.2f}"
+    combined.append(f"| {r['input_tokens']} | {r['concurrency']} | {prefill} | {total} | {median} | {duration} | {s['peak_client_overlap']} |")
+(folder/'TOTAL-DECODE-MATRIX.md').write_text('\n'.join(combined)+'\n')
 print('\n'.join(lines))
