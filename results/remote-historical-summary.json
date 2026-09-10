@@ -1,0 +1,44 @@
+[
+  {
+    "input_tokens": 512,
+    "concurrency": 1,
+    "successes": 1,
+    "peak_client_overlap": 1,
+    "manifest_sha256": "ff51c89f8a095f1e7dc87667777ff8deb47abcc1efab167bd968f4dd023e87f0",
+    "effective_prefill_tps": 2324.7627765652564,
+    "median_ttft_s": 0.2183211031369865,
+    "median_decode_tps": 109.0138472852084,
+    "errors": [],
+    "total_decode_tps": 116.76485964362038,
+    "shared_decode_tps_per_request": 116.76485964362038,
+    "shared_decode_seconds": 70.1495297900401
+  },
+  {
+    "input_tokens": 512,
+    "concurrency": 2,
+    "successes": 2,
+    "peak_client_overlap": 2,
+    "manifest_sha256": "ff51c89f8a095f1e7dc87667777ff8deb47abcc1efab167bd968f4dd023e87f0",
+    "effective_prefill_tps": 2122.558768917196,
+    "median_ttft_s": 0.4815328230615705,
+    "median_decode_tps": 99.45464825207713,
+    "errors": [],
+    "total_decode_tps": 209.4688690967631,
+    "shared_decode_tps_per_request": 104.73443454838154,
+    "shared_decode_seconds": 74.87031398806721
+  },
+  {
+    "input_tokens": 512,
+    "concurrency": 4,
+    "successes": 4,
+    "peak_client_overlap": 4,
+    "manifest_sha256": "ff51c89f8a095f1e7dc87667777ff8deb47abcc1efab167bd968f4dd023e87f0",
+    "effective_prefill_tps": 3117.6071707433357,
+    "median_ttft_s": 0.6554077274631709,
+    "median_decode_tps": 67.93612031793697,
+    "errors": [],
+    "total_decode_tps": 306.81747536848167,
+    "shared_decode_tps_per_request": 75.74328473724259,
+    "shared_decode_seconds": 101.4479372878559
+  }
+]

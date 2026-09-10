@@ -1,26 +1,31 @@
-# DeepSeek V4.1 Flash on 4× RTX PRO 6000 Blackwell
+# DeepSeek-V4.1-Flash on 4 × RTX PRO 6000
 
-Docker deployment for **four 96 GB RTX PRO 6000 Blackwell GPUs**, with native checkpoint precision, DSpark speculative decoding, native vision, and Engram offload to either NVMe or locked host RAM.
+Run DeepSeek-V4.1-Flash on one Linux machine with **4 × 96 GB RTX PRO 6000 Blackwell GPUs, 128 GB DDR5, and local NVMe**. Compute weights and model-native compressed KV stay on the GPUs. Native FP8 Engram rows use a bounded DDR5 cache, with exact NVMe reads on misses. **DSpark is enabled. No second machine is required.**
 
-**Experimental, with real inference evidence.** The underlying NVMe serving configuration has completed a 400,000-token input and six concurrent 400,000-token inputs. The Docker wrapper has now completed bootstrap and fresh arithmetic, structured JSON, tool round-trip and native-image checks through a controller-managed launch. A fresh controller-proxy arithmetic request also passed; these smoke checks are not comprehensive release acceptance. Full-model RAM-mode performance and quality remain unverified.
+This repository contains an end-to-end Docker launcher and measured inference results. It is still experimental: successful loading, measured speed, populated context capacity, and feature correctness are separate milestones.
 
-## What it does
+## 1. Current status
 
-`docker compose up --build` downloads the pinned checkpoint, verifies every file against Hugging Face's SHA256/Git-blob hashes, compiles the storage adapter, starts TP4/EP4 inference, and requires fresh arithmetic, JSON schema, tool round-trip and native image completions before reporting ready. Download and kernel caches persist across restarts. It never deletes other models or stops other containers.
+| Item | Verified result or current limit |
+|---|---|
+| Model precision | Published mixed precision: FP4 routed experts, FP8/BF16 components, FP8 Engram. No EXL3 conversion or pruning. |
+| Local NVMe inference | Running and completing real requests with DSpark block 5. |
+| Eight simultaneous slots | Shared generation demonstrated in the current sweep. The admission-delay fix keeps the eighth slot usable. |
+| 400k input | Earlier native runs retrieved three random codes correctly from 400k-token inputs. |
+| Populated GPU KV | Earlier native NVMe test reached **2,853,120 tokens with seven active requests**. |
+| 4M populated GPU KV | **Pending.** The current candidate caps the pool at 4.2M; allocation alone is not acceptance. |
+| Text, JSON, tools | Fresh arithmetic, schema-constrained JSON and an actual tool-call/result round trip passed. Broader quality testing remains pending. |
+| Vision | Single-image inference passed at the checkpoint's full **1,024 image tokens/image**. Multi-image reliability is unresolved. |
+| Video | Six-frame temporal-color test failed. Do not treat video as supported by this release. |
+| Audio | No native audio workflow is qualified; no auxiliary audio model is included. |
+| Local Studio | Short controller-managed chats passed. Updated 400k proxy validation and final candidate promotion are pending. |
+| Reliability | Final representative one-hour soak and rollback exercise remain pending. |
 
-The backbone and compressed KV cache stay on the GPUs. Engram table lookups preserve the original FP8 bytes and scale bytes; hashing, gating, projections, expert weights and tensor-parallel reduction retain their model behavior. This is **not an EXL3 conversion**. The source mixes FP4 routed experts, FP8/BF16 components, and FP8 Engram tables.
+**Optimization focus:** the single-machine NVMe + DDR5 setup. Remote retrieval experiments have stopped. Historical results remain below for transparency.
 
-## Requirements
+## 2. Start the service
 
-- Linux x86-64, NVIDIA driver compatible with CUDA 13.0, Docker Engine with Compose and NVIDIA Container Toolkit.
-- Exactly four visible 96 GB RTX PRO 6000 Blackwell GPUs, available for this model.
-- Approximately 510 GB for the checkpoint, plus Docker layers, caches and download headroom. Use a local NVMe filesystem supporting direct I/O for NVMe mode.
-- **NVMe mode:** tested on a 128 GB host, using a bounded 64 GiB RAM row-cache budget and exact NVMe misses.
-- **RAM mode:** approximately 189 GiB of Engram shard storage plus at least 24 GiB of available headroom; a 256 GiB or larger host is the practical starting point. Startup checks actual available memory. All mapped table pages are locked with `mlock`; a failed lock aborts startup. Shared read-only mappings avoid four physical copies.
-
-The container does not change GPU power limits, fans, clocks, or CPU policy. Measurements below used 275 W per GPU and PCIe connectivity, without NVLink.
-
-## Start
+Requirements: Linux x86-64, a CUDA 13-compatible NVIDIA driver, Docker Compose, NVIDIA Container Toolkit, four available 96 GB RTX PRO 6000 GPUs, and about 510 GB of checkpoint storage plus container/cache headroom. NVMe mode requires a filesystem supporting direct I/O.
 
 ```bash
 git clone https://github.com/0xSero/deepseek-v4.1-flash-4x-rtx-pro-6000.git
@@ -30,15 +35,15 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
-If you already downloaded this checkpoint, reuse its directory:
+To reuse an existing checkpoint:
 
 ```bash
 MODEL_DIRECTORY=/absolute/path/to/DeepSeek-V4.1-Flash docker compose up --build -d
 ```
 
-The first launch includes a large download and full integrity check before model loading. Subsequent launches reuse verified, unchanged files. The default API binds to localhost. To bind a specific Tailscale address, set `BIND_ADDRESS` to that address.
+The launcher downloads the pinned files, verifies SHA256/Git-blob hashes, compiles the adapter, starts TP4/EP4 inference, and checks arithmetic, JSON, a tool round trip and a native image before reporting ready. Model files, verification state and kernel caches persist. It does not delete other models or stop other containers.
 
-The generated API key is stored in `state/api-key` with mode 0600. Alternatively, set `API_KEY` in a local `.env` file. Never commit that file.
+The API binds to `127.0.0.1:8010`; `BIND_ADDRESS` can select a specific interface. The generated key is in `state/api-key` with mode 0600. An explicit `API_KEY` can instead be supplied through a private `.env` file.
 
 ```bash
 API_KEY=$(cat state/api-key)
@@ -47,98 +52,260 @@ curl http://127.0.0.1:8010/v1/chat/completions \
   -d '{"model":"deepseek-v4.1-flash","messages":[{"role":"user","content":"What is 19 + 23?"}],"chat_template_kwargs":{"thinking":false}}'
 ```
 
-## Offload modes
+## 3. Configuration
 
-| Mode | Command | Storage behavior |
+| Setting | Default | Current speed-sweep candidate |
+|---|---:|---:|
+| `OFFLOAD_MODE` | `nvme` | `nvme` |
+| `DSV41_CACHE_GIB` | 64 | 64 |
+| `CONTEXT_LENGTH` | 409600 | 524288 |
+| `MEMORY_FRACTION` | 0.85 | 0.95 |
+| `MAX_RUNNING_REQUESTS` | 8 | 8 |
+| `MAX_TOTAL_TOKENS` | Runtime-selected | 4200000 |
+| DSpark block size | 5 | 5 |
+| Prefill chunk size | 2048 | 2048 |
+| `min_free_slots_delay` | 1 | 1 |
+
+The current candidate has **not finished long-context acceptance**. To reproduce its allocation settings after reviewing that limitation:
+
+```bash
+MEMORY_FRACTION=0.95 MAX_TOTAL_TOKENS=4200000 \
+CONTEXT_LENGTH=524288 MAX_RUNNING_REQUESTS=8 \
+docker compose up --build -d
+```
+
+A 64 GiB cache budget is bounded capacity, not a promise that every byte is populated or locked. The native Engram tables occupy about 189 GiB, so they cannot reside entirely in this 128 GB host. Cache misses retrieve the original row and scale bytes; model hashing, gating, projections and tensor-parallel reduction are preserved.
+
+`OFFLOAD_MODE=ram` is an optional **unqualified full-model mode for larger-memory hosts**. It prefaults and locks the native tables, requires roughly 189 GiB plus at least 24 GiB available headroom, and aborts if `mlock` fails. Shared mappings avoid four physical copies. It is not the recommended mode for a 128 GB host.
+
+The launcher accepts context lengths from 400,000 through the model's published 1,048,576 limit. Acceptance applies only to measured configurations. Decode/verification CUDA graphs are enabled; this runtime disables prefill CUDA graphs. The container does not change fans, power limits or CPU policy.
+
+## 4. Current local speed sweep
+
+**22 of 45 cases completed in this snapshot.** All listed cases completed every request without reported errors. Remaining cases are pending. [Machine-readable results](results/local-nvme-dspark-summary.json) · [Configuration](results/local-nvme-dspark-config.json).
+
+Each request uses 8,192 forced output tokens. Inputs contain repeated synthetic reference text with unique prefixes. These are performance tests, **not quality scores**. The same four GPUs were capped at 275 W each, connected over PCIe without NVLink.
+
+- **Prefill:** effective input tok/s through the last request's first token, including queueing.
+- **Total decode:** actual delivered tokens across all streams in one shared decode interval.
+- **Decode/request:** median request rate within that same interval. Its product with concurrency need not equal the total.
+- **TTFT:** median time to first token. “No overlap” means a simultaneous decode rate was not measurable.
+
+| Input tokens/request | C | Prefill tok/s | **Total decode tok/s** | Decode/request tok/s | TTFT s | Shared decode s |
+|---:|---:|---:|---:|---:|---:|---:|
+| 512 | 1 | 1,943.0 | 200.9 | 200.9 | 0.26 | 40.78 |
+| 512 | 2 | 4,036.4 | 347.0 | 173.5 | 0.25 | 47.15 |
+| 512 | 4 | 5,251.7 | 517.0 | 130.5 | 0.39 | 60.94 |
+| 512 | 6 | 4,363.0 | 644.0 | 109.0 | 0.69 | 74.18 |
+| 512 | 8 | 5,016.9 | 713.5 | 88.8 | 0.81 | 87.59 |
+| 2,048 | 1 | 7,010.3 | 226.8 | 226.8 | 0.29 | 36.11 |
+| 2,048 | 2 | 6,720.3 | 376.4 | 188.2 | 0.61 | 41.75 |
+| 2,048 | 4 | 6,736.3 | 545.1 | 135.4 | 1.06 | 56.13 |
+| 2,048 | 6 | 6,747.9 | 654.3 | 111.4 | 1.36 | 72.04 |
+| 2,048 | 8 | 6,772.6 | 729.1 | 91.0 | 1.66 | 86.06 |
+| 8,192 | 1 | 7,337.0 | 196.4 | 196.4 | 1.12 | 41.71 |
+| 8,192 | 2 | 7,251.6 | 357.1 | 178.5 | 1.84 | 45.26 |
+| 8,192 | 4 | 7,292.8 | 538.8 | 135.0 | 3.11 | 57.56 |
+| 8,192 | 6 | 7,311.7 | 674.9 | 114.5 | 4.21 | 69.99 |
+| 8,192 | 8 | 7,311.2 | 704.5 | 89.9 | 5.32 | 84.97 |
+| 32,768 | 1 | 7,438.7 | 211.5 | 211.5 | 4.40 | 38.72 |
+| 32,768 | 2 | 7,432.0 | 370.8 | 185.4 | 6.77 | 43.31 |
+| 32,768 | 4 | 7,406.6 | 526.6 | 134.4 | 11.36 | 57.51 |
+| 32,768 | 6 | 7,478.2 | 686.1 | 113.8 | 15.62 | 67.68 |
+| 32,768 | 8 | 7,420.9 | 747.7 | 95.0 | 20.20 | 82.67 |
+| 65,536 | 1 | 7,346.3 | 231.6 | 231.6 | 8.92 | 35.37 |
+| 65,536 | 2 | 7,320.8 | 366.4 | 183.2 | 13.59 | 43.36 |
+
+The complete grid is 512 / 2,048 / 8,192 / 32,768 / 65,536 / 131,072 / 200,000 / 400,000 / 500,000 input tokens at C1 / C2 / C4 / C6 / C8. The 4M gate requires eight distinct 500k inputs, shared continued generation, no prefix reuse or retractions, and matching runtime occupancy.
+
+<details>
+<summary>Current burst latency and DSpark acceptance</summary>
+
+These are client-observed gaps between positive output bursts, not individual-token latency. Percentiles pool gaps across requests; acceptance is the median engine-reported rate across completed requests. [JSON with sample counts](results/local-nvme-burst-latency.json).
+
+| Input | C | Burst gap p50 ms | p95 ms | p99 ms | Gap samples | DSpark acceptance |
+|---:|---:|---:|---:|---:|---:|---:|
+| 512 | 1 | 23.59 | 29.00 | 29.33 | 1657 | 78.9% |
+| 512 | 2 | 28.05 | 36.83 | 39.18 | 3209 | 82.2% |
+| 512 | 4 | 37.66 | 46.47 | 50.13 | 6552 | 81.0% |
+| 512 | 6 | 46.54 | 55.15 | 60.10 | 9744 | 82.6% |
+| 512 | 8 | 55.14 | 66.60 | 72.29 | 13100 | 79.2% |
+| 2,048 | 1 | 22.96 | 25.51 | 27.62 | 1556 | 85.3% |
+| 2,048 | 2 | 27.04 | 31.69 | 33.48 | 3131 | 84.8% |
+| 2,048 | 4 | 36.85 | 43.03 | 46.73 | 6381 | 82.2% |
+| 2,048 | 6 | 44.74 | 52.89 | 57.77 | 9864 | 81.5% |
+| 2,048 | 8 | 54.41 | 65.06 | 72.02 | 13027 | 80.9% |
+| 8,192 | 1 | 23.16 | 28.09 | 29.07 | 1742 | 74.1% |
+| 8,192 | 2 | 28.21 | 32.96 | 34.93 | 3183 | 83.0% |
+| 8,192 | 4 | 37.07 | 42.93 | 45.84 | 6467 | 80.9% |
+| 8,192 | 6 | 45.20 | 53.11 | 56.21 | 9628 | 84.3% |
+| 8,192 | 8 | 54.85 | 65.05 | 69.49 | 13290 | 80.2% |
+| 32,768 | 1 | 23.14 | 26.46 | 28.53 | 1643 | 79.7% |
+| 32,768 | 2 | 28.31 | 31.78 | 33.89 | 3103 | 85.7% |
+| 32,768 | 4 | 37.61 | 43.53 | 45.98 | 6527 | 81.4% |
+| 32,768 | 6 | 44.67 | 50.81 | 54.39 | 9507 | 83.0% |
+| 32,768 | 8 | 54.37 | 61.83 | 66.51 | 12798 | 84.3% |
+| 65,536 | 1 | 23.29 | 24.73 | 27.00 | 1511 | 88.4% |
+| 65,536 | 2 | 28.81 | 32.02 | 33.51 | 3083 | 86.4% |
+
+</details>
+
+Host telemetry is being recorded. Swappiness was 180, with some inference-process pages already swapped after loading; short samples did not show growing inference swap. This does not establish a causal bottleneck. Cache behavior, host memory, attention workspace and B12x are candidates for controlled local tuning after the baseline sweep.
+
+## 5. Experiment history
+
+### Capacity and runtime experiments
+
+| Experiment | Result | Decision / limit |
 |---|---|---|
-| NVMe + bounded RAM cache | `OFFLOAD_MODE=nvme docker compose up -d` | Native FP8 rows, direct NVMe reads on cache misses; 64 GiB cache budget by default |
-| Full host RAM | `OFFLOAD_MODE=ram docker compose up -d` | Shared, prefaulted, locked mappings of both Engram shards; no duplicate row cache |
+| Native NVMe, six × 400k | 2,406,912 populated KV; 501 total decode tok/s; 11.69 s shared decode | Passed that capacity; earlier 0.85 configuration |
+| Native NVMe, six × 350k | 2,143,232 populated KV; 75.64 s shared generation | Passed that capacity; separate earlier workload |
+| Native NVMe, seven × 400k, 8,192 output | **2,853,120 populated KV; 6,353 prefill tok/s; 721 total decode tok/s; 104/request; 74.48 s shared** | Passed; [receipt](results/capacity-2800000.json) |
+| Uncapped 0.93 memory fraction | Allocated 7.62M logical slots; first generation failed on temporary attention-buffer allocation | Failed; reserved slots were not usable capacity |
+| 0.93, 4.2M cap, ten-slot remote trial | Nine requests overlapped; tenth queued; at least 3,656,704 populated tokens observed | Did not prove 4M; not the selected local setup |
+| Default DSpark admission delay | Left the final request slot idle until another request completed | Set `--min-free-slots-delay 1`; current local C8 overlap is measured above |
+| 0.95, 4.2M cap, eight local slots | Active sweep above | 4M acceptance pending |
+| Larger 4096 prefill chunk / 0.88 trial | Failed near 399k input despite successful loading | Keep 2048 prefill chunks for this baseline |
+| B12x attention kernels | Standalone correctness/shape tests passed | Not yet accepted in full-model serving; default still uses the documented SM120 compatibility path |
+| Native fully resident DDR5 | About 189 GiB needed before runtime headroom | Does not fit 128 GB host; not tested as a fabricated “RAM-only” result |
 
-`DSV41_CACHE_GIB` changes the NVMe mode's aggregate row-cache budget. Reducing it saves host RAM but can increase I/O. A 128 GB host cannot hold both native Engram tables fully in RAM. Remote DDR4 and experimental NVFP4 Engram storage are research candidates, **not implemented by this release**.
+### Historical remote comparison — stopped
 
-## Context, speculation and modalities
+These three cases used the same DSpark5 / 0.95 / 4.2M-cap / eight-slot / 8,192-output settings as the local sweep. They are single-wave synthetic measurements, not a complete storage comparison. Remote storage is not part of the current deployment. [Raw summaries](results/remote-historical-summary.json).
 
-- Default context: **409,600 tokens per request**, allowing a 400k input plus a response. `CONTEXT_LENGTH` accepts 400,000 through the model's published 1,048,576 limit; values above the tested default are not qualified.
-- Up to eight running requests; 2,048-token prefill chunks and GPU memory fraction 0.85 reserve indexer workspace. The larger 4,096-chunk/0.88 configuration failed near 399k input, despite loading successfully.
-- DSpark is enabled with block size 5. Decode/verification CUDA graphs are used; prefill CUDA graphs are disabled by this runtime.
-- Native image input uses the OpenAI `image_url` content format. The checkpoint's full **1,024 image tokens per image** are retained. An actual 3,024×588 image consumed exactly 1,024 image tokens and was described correctly.
-- Explicit V4.1 reasoning and tool parsers are enabled. A real tool-call/result round trip and schema-constrained JSON passed in the reference deployment.
-- Native video/audio workflows are **not qualified**. A six-image temporal-color fixture failed (reported only red instead of red, blue, green), so multi-image/video correctness remains unresolved. No auxiliary audio models are included.
+| Input | C | Remote prefill tok/s | Remote total decode tok/s | Local prefill tok/s | Local total decode tok/s |
+|---:|---:|---:|---:|---:|---:|
+| 512 | 1 | 2,324.8 | 116.8 | 1,943.0 | 200.9 |
+| 512 | 2 | 2,122.6 | 209.5 | 4,036.4 | 347.0 |
+| 512 | 4 | 3,117.6 | 306.8 | 5,251.7 | 517.0 |
 
-## Measured total decode speed
+The historical remote client also underwent a TCP_NODELAY microbenchmark. These are lookup latencies, **not inference throughput**, and are not part of the selected local path.
 
-[Full 40-case table: prefill, total decode, per-request decode and overlap](results/INFERENCE-MATRIX.md).
+| Rows in lookup batch | Before median ms | After median ms |
+|---:|---:|---:|
+| 24 | 42.05 | 0.5615 |
+| 120 | 43.93 | 0.8323 |
+| 1024 | 11.82 | 3.448 |
 
-| Input × concurrent requests | Prefill tok/s | Total decode tok/s | Median decode tok/s/request |
-|---|---:|---:|---:|
-| 200k × 6 | 6,901 | 587 | 98 |
-| 400k × 1 | 6,129 | 167 | 167 |
-| 400k × 2 | 6,171 | 249 | 124 |
-| 400k × 4 | 6,169 | 425 | 106 |
-| 400k × 6 | 6,178 | 501 | 83 |
+### Experimental compressed Engram — not deployed
 
-Total decode counts actual emitted tokens over the same wall-clock interval for all streams; per-request rates use that interval too. Most C8 bursts never achieved eight-stream overlap, so their simultaneous total decode is left blank. All 40 request waves completed successfully. These synthetic speed tests are not quality scores.
+| Check | Observed result | What it establishes |
+|---|---|---|
+| Full native table calibration | Layer maxima 11 and 24; no invalid blocks | Quantizer calibration, not model quality |
+| NVFP4 packed format | 128 value bytes + 16 scale bytes per row; about 103 GiB total | Storage estimate before runtime headroom |
+| Reference packing | Exact byte match on 8,192 sampled rows | Converter sample parity |
+| Sample reconstruction | Relative RMSE 9.48% / 9.66%; mean cosine about 0.9955 | Tensor error only; no task-quality acceptance |
+| CPU packed-row retrieval | 16,384 checks, including 8,192 locked-RAM checks | Lookup and TP ownership parity |
+| GPU dequantization | Exact BF16 comparison; 200 CUDA-graph replays on RTX 3090 | Kernel-only result, not Blackwell/model acceptance |
+| Full conversion | First table completed; second stopped when focus returned to local native optimization | Incomplete candidate; original checkpoint preserved |
+| Combined CUDA host-callback test | Did not execute because the test could not locate its CUDA runtime library | No combined-path acceptance |
+| Full-model compressed inference | Not run | No speed or quality claim |
 
-Six 400k streams reached **2,406,912 populated logical KV tokens** with CUDA graphs active, within an allocated pool of **2,865,664**. Their shared decoding interval lasted 11.69 seconds.
+### Earlier speed baseline
 
-## Additional measurements and remaining gates
+The following 40 waves used the earlier allocation/admission settings and shorter output budget (usually 1,024 tokens). **Do not treat differences from the current 8,192-token sweep as an isolated optimization gain.** Requested C8 often lacked eight-stream overlap. Every wave completed, but absent overlap is not a simultaneous throughput result. [Summaries](results/summary.json) · [Shared-window evidence](results/common-window.json).
 
-The tested native NVMe configuration uses the exact pinned source and runtime below. These are exploratory single-wave measurements, not a comprehensive quality study.
+<details>
+<summary>All 40 earlier measurements</summary>
 
-| Test | Observed result |
+| Input | C | Prefill tok/s | Total decode tok/s | Decode/request tok/s | Shared decode s |
+|---:|---:|---:|---:|---:|---:|
+| 512 | 1 | 1,070.0 | 152.3 | 152.3 | 6.72 |
+| 512 | 2 | 1,848.8 | 259.4 | 129.7 | 7.60 |
+| 512 | 4 | 2,976.9 | 409.6 | 102.8 | 9.82 |
+| 512 | 6 | 3,216.8 | 564.4 | 94.7 | 10.69 |
+| 512 | 8 | 3,477.0 | 582.0 | 72.9 | 13.12 |
+| 2,048 | 1 | 5,875.1 | 160.3 | 160.3 | 6.38 |
+| 2,048 | 2 | 6,205.0 | 323.8 | 161.9 | 6.25 |
+| 2,048 | 4 | 6,227.1 | 491.5 | 121.3 | 7.95 |
+| 2,048 | 6 | 6,359.5 | 594.5 | 100.8 | 10.02 |
+| 2,048 | 8 | 1,169.1 | Not measured | Not measured | 0.00 |
+| 8,192 | 1 | 7,457.5 | 157.9 | 157.9 | 6.48 |
+| 8,192 | 2 | 7,614.8 | 312.9 | 156.4 | 6.43 |
+| 8,192 | 4 | 7,500.6 | 449.2 | 112.4 | 9.03 |
+| 8,192 | 6 | 7,580.9 | 646.4 | 107.7 | 9.10 |
+| 8,192 | 8 | 3,166.7 | Not measured | Not measured | 0.00 |
+| 32,768 | 1 | 7,816.6 | 187.4 | 187.4 | 5.46 |
+| 32,768 | 2 | 7,771.2 | 321.5 | 160.7 | 6.24 |
+| 32,768 | 4 | 7,704.3 | 500.8 | 123.6 | 7.67 |
+| 32,768 | 6 | 7,614.2 | 589.7 | 98.6 | 9.82 |
+| 32,768 | 8 | 5,947.3 | Not measured | Not measured | 0.00 |
+| 65,536 | 1 | 7,447.3 | 169.2 | 169.2 | 6.05 |
+| 65,536 | 2 | 7,449.8 | 309.9 | 154.9 | 6.54 |
+| 65,536 | 4 | 7,427.8 | 502.3 | 125.8 | 7.86 |
+| 65,536 | 6 | 7,402.7 | 565.6 | 96.0 | 10.17 |
+| 65,536 | 8 | 6,462.1 | Not measured | Not measured | 0.00 |
+| 131,072 | 1 | 7,151.6 | 174.1 | 174.1 | 5.88 |
+| 131,072 | 2 | 7,133.3 | 305.9 | 153.0 | 6.60 |
+| 131,072 | 4 | 7,137.9 | 492.3 | 120.9 | 7.72 |
+| 131,072 | 6 | 7,128.3 | 617.8 | 102.4 | 9.44 |
+| 131,072 | 8 | 6,663.4 | Not measured | Not measured | 0.00 |
+| 200,000 | 1 | 6,860.9 | 190.7 | 190.7 | 5.36 |
+| 200,000 | 2 | 6,906.8 | 309.9 | 154.9 | 6.46 |
+| 200,000 | 4 | 6,861.2 | 473.6 | 119.1 | 8.41 |
+| 200,000 | 6 | 6,901.2 | 586.8 | 97.8 | 10.24 |
+| 200,000 | 8 | 6,549.4 | Not measured | Not measured | 0.00 |
+| 400,000 | 1 | 6,128.5 | 166.7 | 166.7 | 6.14 |
+| 400,000 | 2 | 6,171.3 | 248.7 | 124.4 | 8.13 |
+| 400,000 | 4 | 6,168.7 | 425.0 | 106.3 | 9.54 |
+| 400,000 | 6 | 6,178.2 | 500.6 | 83.4 | 11.69 |
+| 400,000 | 8 | 6,045.8 | Not measured | Not measured | 0.00 |
+
+</details>
+
+Earlier short windows counted emitted tokens 129–641 independently for each request. These are not aggregate simultaneous rates.
+
+| Requested C | Earlier individual decode tok/s |
+|---:|---:|
+| 1 | 162.6 |
+| 2 | 135.1–148.0 |
+| 4 | 112.6–126.4 |
+| 8 | 83.6–96.6 |
+
+## 6. Feature and controller acceptance
+
+| Test | Result |
 |---|---|
-| 400,000 actual input tokens | All three random retrieval codes found; first token at 60.59 s |
-| Six concurrent 350k inputs | 2.1M input tokens; 75.64 s with all requests decoding simultaneously |
-| Runtime occupancy during that test | 2,143,232 populated logical context tokens, six running requests, CUDA graphs active |
-| Short code decode, concurrency 1 | 162.6 tok/s over emitted tokens 129–641 |
-| Short code decode, concurrency 2 | 135.1–148.0 tok/s per request |
-| Short code decode, concurrency 4 | 112.6–126.4 tok/s per request |
-| Short code decode, concurrency 8 | 83.6–96.6 tok/s per request |
+| 400k retrieval | Three random codes found; first token at 60.59 s in an earlier native run |
+| Two-turn direct 400k chat | Both turns retrieved the codes and stopped naturally; 62.09 s then 1.92 s, with prefix reuse on continuation |
+| Single 3024 × 588 image | Correct description; exactly 1,024 image tokens |
+| Individual red/blue/green and three-image order tests | Passed |
+| Six grouped duplicate-color images | Failed; alternating colors and explicitly numbered image variants passed narrower checks |
+| Six-frame temporal-color video | Failed to recover the correct red → blue → green sequence |
+| Arithmetic, JSON schema, tool round trip | Passed through a controller-managed Docker launch |
+| Controller 400k chat with old 409600 recipe | Rejected before inference: heuristic estimated 466,663 against a 368,640 soft ceiling |
+| Controller with proposed 524288 context | Source analysis indicates the earlier fixture fits; live retest pending |
 
-The concurrency capacity test deliberately ignored EOS and generated 8,192 tokens per request to maintain occupancy. It proves capacity, **not output quality**. Long-input tests used a synthetic repeated archive and unique request prefixes. KV capacity refers to model-native compressed attention state, not a conventional dense KV representation.
+Local Studio's exact display name is **`Deepseek-v4.1-Flash`**; its served model ID is **`deepseek-v4.1-flash`**. The tested controller required recipe port and `SERVER_PORT=8000`; default Compose uses 8010. A healthy direct API does not prove controller or visible UI acceptance. Keep recipe context, launch context and proxy port consistent.
 
-Still required: full-table RAM-mode inference, repeated matched performance comparisons, representative quality/logit checks, remote RAM/NVFP4 comparisons, multi-image/native modality qualification, and a one-hour soak. B12x passed standalone tests but is not used in this default serving path.
+## 7. Reproduce benchmarks and stop
 
-## Reproducibility and attribution
+```bash
+docker compose exec deepseek python3 /opt/dsv41/boot.py smoke
+docker compose exec -e PREFILL_SIZES=512,2048,8192,32768,65536,131072,200000,400000,500000 \
+  -e CONCURRENCIES=1,2,4,6,8 -e OUTPUT_TOKENS=8192 -e IGNORE_EOS=1 \
+  deepseek python3 /opt/dsv41/benchmarks/matrix.py
+docker compose down
+```
 
-- Model: [DeepSeek-V4.1-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash), revision `fb2764a5cf321eaa5070ca8f9e892818f477c16d`.
-- Runtime: [SGLang](https://github.com/sgl-project/sglang), image `lmsysorg/sglang@sha256:c4ca651192e57e91989b5176c3665148131b9a171e53861dee87f5e57cef25b5`.
-- Two SM120 compatibility fixes: initialize the existing DeepGEMM planner for V4.1 ratio-1/2 indexers; split both sparse-prefill KV sources into supported 64-token pages with independent scratch buffers. The latter file retains SGLang's Apache-2.0 licensing.
-- Related prior work: [B12x](https://github.com/local-inference-lab/b12x), [DeepSpark](https://github.com/brandonmmusic-max/deepspark), and [the earlier DS4 SM120 recipe](https://github.com/jacklarmer/deepseek-v4-flash-0731-sm120). Earlier DS4 settings informed investigation; they are not evidence of V4.1 acceptance.
+Each matrix saves raw token events, JSON summaries and `TABLE.md` under `state/matrix-<timestamp>`. `benchmarks/common_window.py` can recompute total decode from saved events. Preserve the exact launch manifest, prompts, output budget and cache state when comparing candidates. The public snapshots above do not imply all pending cases completed.
 
-Model weights are downloaded at runtime and are not included in the image. Their upstream license remains applicable. See `NOTICE` for code attribution.
-
-## Tests and shutdown
+CPU adapter checks:
 
 ```bash
 docker compose run --rm --entrypoint python3 deepseek /opt/dsv41/tests/test_row_store.py
 docker compose run --rm -e OFFLOAD_MODE=ram --entrypoint python3 deepseek /opt/dsv41/tests/test_row_store.py
-docker compose exec deepseek python3 /opt/dsv41/boot.py smoke
-docker compose exec deepseek python3 /opt/dsv41/benchmarks/sweep.py
-docker compose exec deepseek python3 /opt/dsv41/benchmarks/matrix.py
-docker compose down
 ```
 
-Shutdown preserves the checkpoint, state directory and kernel cache. Restore your previous serving container using its own saved launch configuration.
+Shutdown preserves checkpoint, state and kernel caches. Restore an earlier service using its saved container configuration; a complete rollback exercise for the final candidate is still pending.
 
-The matrix writes an incremental `TABLE.md`, JSON summaries and raw token/timing records under `state/matrix-<timestamp>/`. It sweeps 512, 2k, 8k, 32k, 64k, 128k, 200k and 400k inputs at requested concurrency 1/2/4/8. Override `PREFILL_SIZES` or `CONCURRENCIES` for another grid. It reports effective input throughput including queuing, a common emitted-token decode window, and observed client overlap; a queued burst is not labeled simultaneous decoding. Large matrices can take tens of minutes.
+## 8. Provenance
 
-To compute total decode from saved raw matrix events:
+| Component | Pinned source / attribution |
+|---|---|
+| Model | [DeepSeek-V4.1-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash), revision `fb2764a5cf321eaa5070ca8f9e892818f477c16d` |
+| SGLang base | `lmsysorg/sglang@sha256:c4ca651192e57e91989b5176c3665148131b9a171e53861dee87f5e57cef25b5` |
+| SM120 compatibility | Existing DeepGEMM planner initialization; sparse-prefill sources split into supported 64-token pages with independent scratch buffers |
+| Related work | [B12x](https://github.com/local-inference-lab/b12x), [DeepSpark](https://github.com/brandonmmusic-max/deepspark), [earlier DS4 SM120 recipe](https://github.com/jacklarmer/deepseek-v4-flash-0731-sm120) |
 
-```bash
-python3 benchmarks/common_window.py state/matrix-<timestamp>
-```
-
-This writes `TOTAL-DECODE-MATRIX.md` with total decode as a separate column. Published performance results describe the original reference runtime. The Docker wrapper subsequently passed fresh functional inference checks; its full performance matrix has not been repeated.
-
-For controller integration, `SERVER_PORT` selects the server and health-check port (default `8010`). Match the container port mapping and controller proxy target to it. The tested Local Studio controller required `SERVER_PORT=8000` and recipe port `8000`; its proxy did not follow a recipe on port8010. The default Compose deployment continues to use8010.
-
-### Local Studio long-context proxy limit
-
-The tested controller rejected an officially encoded400,049-token chat before reaching the engine: its heuristic estimated466,663 tokens against a368,640-token soft ceiling. Short controller chats passed, but400k proxy conversations are **not qualified**. The model itself passed400k inputs and six simultaneous400k requests. For long contexts, use the authenticated engine endpoint directly (port8000 in the Studio recipe;8010 in default Compose). Do not treat the controller soft limit as the model capacity.
-
-### Capacity and sustained concurrency controls
-
-`MEMORY_FRACTION` (default `0.85`), `MAX_RUNNING_REQUESTS` (default `8`), and optional `MAX_TOTAL_TOKENS` control the allocation. The launcher retains DSpark block5 and sets `--min-free-slots-delay 1`: the upstream DSpark admission delay otherwise leaves the final slot idle until another request finishes. Higher memory fractions require real prefill validation. An uncapped0.93 trial allocated7.62M logical tokens but failed its first generation on a temporary attention-buffer allocation; allocated tokens are not usable capacity proof.
-
-The benchmark accepts `OUTPUT_TOKENS`, `IGNORE_EOS`, and `API_BASE`. Use the same values for every storage candidate. Sustained forced-length runs are synthetic performance measurements, not quality evaluations. Every row now includes actual total and median per-request decode throughput over a shared interval, plus its duration. Results are blank if all requested streams did not overlap. The active4M qualification and expanded storage comparison are pending; existing published results retain their original settings.
+Weights are downloaded at runtime and retain their upstream license. They are not included in the container. The adapted SGLang file retains Apache-2.0 licensing; see [NOTICE](NOTICE) for attribution.
