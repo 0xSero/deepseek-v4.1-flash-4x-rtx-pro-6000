@@ -1,6 +1,6 @@
 {
   "status": "in-progress",
-  "completed_cases": 22,
+  "completed_cases": 29,
   "planned_cases": 45,
   "model_revision": "fb2764a5cf321eaa5070ca8f9e892818f477c16d",
   "runtime_image": "sha256:6256f616ed5a848963ffeb31925ddea971c7faa7b21f6119e4ea8ae086b2f642",

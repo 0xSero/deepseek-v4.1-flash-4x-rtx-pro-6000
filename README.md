@@ -82,7 +82,7 @@ The launcher accepts context lengths from 400,000 through the model's published 
 
 ## 4. Current local speed sweep
 
-**22 of 45 cases completed in this snapshot.** All listed cases completed every request without reported errors. Remaining cases are pending. [Machine-readable results](results/local-nvme-dspark-summary.json) · [Configuration](results/local-nvme-dspark-config.json).
+**29 of 45 cases completed in this snapshot.** All listed cases completed every request without reported errors. Remaining cases are pending. [Machine-readable results](results/local-nvme-dspark-summary.json) · [Configuration](results/local-nvme-dspark-config.json).
 
 Each request uses 8,192 forced output tokens. Inputs contain repeated synthetic reference text with unique prefixes. These are performance tests, **not quality scores**. The same four GPUs were capped at 275 W each, connected over PCIe without NVLink.
 
@@ -115,6 +115,13 @@ Each request uses 8,192 forced output tokens. Inputs contain repeated synthetic 
 | 32,768 | 8 | 7,420.9 | 747.7 | 95.0 | 20.20 | 82.67 |
 | 65,536 | 1 | 7,346.3 | 231.6 | 231.6 | 8.92 | 35.37 |
 | 65,536 | 2 | 7,320.8 | 366.4 | 183.2 | 13.59 | 43.36 |
+| 65,536 | 4 | 7,313.4 | 520.2 | 135.2 | 22.70 | 58.29 |
+| 65,536 | 6 | 7,330.6 | 677.8 | 112.5 | 31.59 | 68.18 |
+| 65,536 | 8 | 7,335.8 | 712.3 | 89.2 | 40.49 | 83.64 |
+| 131,072 | 1 | 7,064.6 | 203.4 | 203.4 | 18.55 | 40.28 |
+| 131,072 | 2 | 7,115.8 | 372.2 | 186.1 | 27.74 | 42.97 |
+| 131,072 | 4 | 7,095.7 | 585.6 | 148.4 | 46.51 | 54.73 |
+| 131,072 | 6 | 7,082.0 | 646.0 | 108.8 | 64.93 | 71.12 |
 
 The complete grid is 512 / 2,048 / 8,192 / 32,768 / 65,536 / 131,072 / 200,000 / 400,000 / 500,000 input tokens at C1 / C2 / C4 / C6 / C8. The 4M gate requires eight distinct 500k inputs, shared continued generation, no prefix reuse or retractions, and matching runtime occupancy.
 
@@ -171,6 +178,8 @@ The next storage candidate reuses the [upstream B12x reader](https://github.com/
 | B12x attention kernels | Standalone correctness/shape tests passed | Not yet accepted in full-model serving; default still uses the documented SM120 compatibility path |
 | Latest B12x NVMe reader | Upstream `01ac763` adds bounded `io_uring`, fixed buffers, page deduplication and coalesced reads | Priority local candidate; no full-model speed result yet |
 | B12x reader prerequisites in current image | `io_uring_setup` returned EPERM; `liburing` development package is absent | Candidate needs the dependency and a scoped container syscall policy before testing |
+| B12x candidate prerequisite probe | `io_uring_setup` succeeds with only three additional syscalls allowed; candidate image built with `liburing` | Running baseline unchanged |
+| B12x native reader bridge | **12,288 byte-parity checks passed** at queue depths 1/8/64, four TP ranks, native 256-byte rows plus 8-byte scales | [Receipt](results/b12x-uring-bridge-parity.json); synthetic CPU fixtures only, no graph/model acceptance yet |
 | Native fully resident DDR5 | About 189 GiB needed before runtime headroom | Does not fit 128 GB host; not tested as a fabricated “RAM-only” result |
 
 ### Historical remote comparison — stopped
