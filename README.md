@@ -132,3 +132,7 @@ python3 benchmarks/common_window.py state/matrix-<timestamp>
 This writes `TOTAL-DECODE-MATRIX.md` with total decode as a separate column. Published performance results describe the original reference runtime. The Docker wrapper subsequently passed fresh functional inference checks; its full performance matrix has not been repeated.
 
 For controller integration, `SERVER_PORT` selects the server and health-check port (default `8010`). Match the container port mapping and controller proxy target to it. The tested Local Studio controller required `SERVER_PORT=8000` and recipe port `8000`; its proxy did not follow a recipe on port8010. The default Compose deployment continues to use8010.
+
+### Local Studio long-context proxy limit
+
+The tested controller rejected an officially encoded400,049-token chat before reaching the engine: its heuristic estimated466,663 tokens against a368,640-token soft ceiling. Short controller chats passed, but400k proxy conversations are **not qualified**. The model itself passed400k inputs and six simultaneous400k requests. For long contexts, use the authenticated engine endpoint directly (port8000 in the Studio recipe;8010 in default Compose). Do not treat the controller soft limit as the model capacity.
