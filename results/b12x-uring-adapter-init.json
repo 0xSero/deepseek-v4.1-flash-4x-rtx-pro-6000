@@ -1,0 +1,1 @@
+{"passed": true, "adapter": "B12x cached io_uring", "hits": 3, "misses": 3, "disk_batches": 1, "scope": "Assembled CPU adapter initialization and native byte contract; no GPU graph or full model."}

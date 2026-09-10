@@ -82,7 +82,7 @@ The launcher accepts context lengths from 400,000 through the model's published 
 
 ## 4. Current local speed sweep
 
-**29 of 45 cases completed in this snapshot.** All listed cases completed every request without reported errors. Remaining cases are pending. [Machine-readable results](results/local-nvme-dspark-summary.json) · [Configuration](results/local-nvme-dspark-config.json).
+**35 of 45 cases completed in this snapshot.** All listed cases completed every request without reported errors. Remaining cases are pending. [Machine-readable results](results/local-nvme-dspark-summary.json) · [Configuration](results/local-nvme-dspark-config.json).
 
 Each request uses 8,192 forced output tokens. Inputs contain repeated synthetic reference text with unique prefixes. These are performance tests, **not quality scores**. The same four GPUs were capped at 275 W each, connected over PCIe without NVLink.
 
@@ -122,6 +122,12 @@ Each request uses 8,192 forced output tokens. Inputs contain repeated synthetic 
 | 131,072 | 2 | 7,115.8 | 372.2 | 186.1 | 27.74 | 42.97 |
 | 131,072 | 4 | 7,095.7 | 585.6 | 148.4 | 46.51 | 54.73 |
 | 131,072 | 6 | 7,082.0 | 646.0 | 108.8 | 64.93 | 71.12 |
+| 131,072 | 8 | 7,089.5 | 736.3 | 91.3 | 83.39 | 83.89 |
+| 200,000 | 1 | 6,802.6 | 202.2 | 202.2 | 29.40 | 40.52 |
+| 200,000 | 2 | 6,824.1 | 374.2 | 187.1 | 44.12 | 43.30 |
+| 200,000 | 4 | 6,835.0 | 553.2 | 138.7 | 73.71 | 57.31 |
+| 200,000 | 6 | 6,847.9 | 606.2 | 105.5 | 102.70 | 72.68 |
+| 200,000 | 8 | 6,864.8 | 723.6 | 93.2 | 131.55 | 86.18 |
 
 The complete grid is 512 / 2,048 / 8,192 / 32,768 / 65,536 / 131,072 / 200,000 / 400,000 / 500,000 input tokens at C1 / C2 / C4 / C6 / C8. The 4M gate requires eight distinct 500k inputs, shared continued generation, no prefix reuse or retractions, and matching runtime occupancy.
 
@@ -180,6 +186,8 @@ The next storage candidate reuses the [upstream B12x reader](https://github.com/
 | B12x reader prerequisites in current image | `io_uring_setup` returned EPERM; `liburing` development package is absent | Candidate needs the dependency and a scoped container syscall policy before testing |
 | B12x candidate prerequisite probe | `io_uring_setup` succeeds with only three additional syscalls allowed; candidate image built with `liburing` | Running baseline unchanged |
 | B12x native reader bridge | **12,288 byte-parity checks passed** at queue depths 1/8/64, four TP ranks, native 256-byte rows plus 8-byte scales | [Receipt](results/b12x-uring-bridge-parity.json); synthetic CPU fixtures only, no graph/model acceptance yet |
+| B12x bounded DDR5 cache adapter | **36,864 native-layout byte checks passed**, including cache collisions, warm hits, TP ownership and concurrent callers | [Receipt](results/b12x-uring-cache-parity.json); CPU fixtures, no model throughput claim |
+| Assembled B12x adapter initialization | Native bytes and warm-cache behavior passed through the patched adapter constructor | [Receipt](results/b12x-uring-adapter-init.json); GPU callback replay and full inference remain pending |
 | Native fully resident DDR5 | About 189 GiB needed before runtime headroom | Does not fit 128 GB host; not tested as a fabricated “RAM-only” result |
 
 ### Historical remote comparison — stopped
