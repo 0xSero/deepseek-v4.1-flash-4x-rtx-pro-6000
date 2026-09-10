@@ -165,6 +165,8 @@ These are client-observed gaps between positive output bursts, not individual-to
 
 Host telemetry is being recorded. Swappiness was 180, with some inference-process pages already swapped after loading; short samples did not show growing inference swap. This does not establish a causal bottleneck. Cache behavior, host memory, attention workspace and B12x are candidates for controlled local tuning after the baseline sweep.
 
+`CHUNKED_PREFILL_SIZE` is configurable through Docker Compose; the default remains **2,048**. Larger values are experimental until long-context, eight-request and vision tests pass. A previous 4,096-token chunk configuration failed near 399k input, so configuration availability is not a stability claim.
+
 The next storage candidate reuses the [upstream B12x reader](https://github.com/local-inference-lab/b12x/blob/01ac763bef7503d934c4c2874bfd005799ca24a1/b12x/loader/_ple_reader.c). Its configurable native byte reader can represent the checkpoint's 256-byte FP8 rows plus 8-byte E8M0 scale rows. The high-level PLE wrapper has different quantization and graph-capture contracts, so it cannot simply replace DeepSeek's embedding module. Integration must retain native row/scaling semantics, the DDR5 cache and DSpark graph replay, then pass parity and matched inference sweeps.
 
 ## 5. Experiment history

@@ -137,6 +137,8 @@ def serve():
     mode = os.environ.get('OFFLOAD_MODE','nvme')
     assert mode in ('nvme','ram'), 'OFFLOAD_MODE must be nvme or ram'
     context = int(os.environ.get('CONTEXT_LENGTH','409600'))
+    chunk = int(os.environ.get('CHUNKED_PREFILL_SIZE','2048'))
+    assert 128 <= chunk <= context and chunk % 128 == 0, 'CHUNKED_PREFILL_SIZE must be a multiple of 128 within context'
     concurrency = int(os.environ.get('MAX_RUNNING_REQUESTS','8'))
     assert 1 <= concurrency <= 32, 'MAX_RUNNING_REQUESTS must be between 1 and 32'
     memory_fraction = float(os.environ.get('MEMORY_FRACTION','0.85'))
@@ -155,7 +157,7 @@ def serve():
     args = ['--model-path',str(MODEL),'--served-model-name','deepseek-v4.1-flash',
         '--trust-remote-code','--load-format','safetensors','--tp','4','--ep-size','4',
         '--attention-backend','dsv4','--moe-runner-backend','flashinfer_mxfp4',
-        '--mem-fraction-static',str(memory_fraction),'--chunked-prefill-size','2048',
+        '--mem-fraction-static',str(memory_fraction),'--chunked-prefill-size',str(chunk),
         '--context-length',str(context),'--max-running-requests',str(concurrency),'--cuda-graph-max-bs-decode',str(concurrency),
         '--min-free-slots-delay','1','--random-seed','0','--speculative-algorithm','DSPARK','--speculative-dspark-block-size','5',
         '--enable-decoder-swa-bounded-replay','--tool-call-parser','deepseekv41',
