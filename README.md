@@ -332,3 +332,7 @@ Shutdown preserves checkpoint, state and kernel caches. Restore an earlier servi
 | Related work | [B12x](https://github.com/local-inference-lab/b12x), [DeepSpark](https://github.com/brandonmmusic-max/deepspark), [earlier DS4 SM120 recipe](https://github.com/jacklarmer/deepseek-v4-flash-0731-sm120) |
 
 Weights are downloaded at runtime and retain their upstream license. They are not included in the container. The adapted SGLang file retains Apache-2.0 licensing; see [NOTICE](NOTICE) for attribution.
+
+## Study protocol and upstream skills
+
+The [study protocol](STUDY-PROTOCOL.md) records pinned Local Inference Lab sources, installed skills, bounded experiment budgets, correctness gates and the evidence audit. Performance winners require repeatable matched measurements and quality acceptance.

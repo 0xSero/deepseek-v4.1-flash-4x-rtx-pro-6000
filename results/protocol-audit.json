@@ -1,0 +1,23 @@
+{
+  "scope": "published snapshot, not the later live sweep",
+  "observed_cells": 35,
+  "planned_cells": 45,
+  "checks": {
+    "unique_cells": true,
+    "successful_requests": true,
+    "client_overlap": true,
+    "manifest_identity": true,
+    "positive_shared_windows": true,
+    "configured_context_covers_workload": true
+  },
+  "acceptance": "not yet qualified",
+  "missing_gates": [
+    "repeated matched candidate runs",
+    "paired real-workload quality",
+    "4000000 simultaneously populated KV receipt",
+    "absolute latency SLA not specified",
+    "video temporal correctness",
+    "production controller and ZCode prompt acceptance"
+  ],
+  "source_sha256": "e613122b125a119f52f83f496b387a3d7cfe1845cd53c77f21b13fbc606bc47e"
+}
