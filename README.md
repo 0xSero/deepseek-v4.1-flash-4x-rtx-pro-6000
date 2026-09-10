@@ -66,6 +66,14 @@ curl http://127.0.0.1:8010/v1/chat/completions \
 | Prefill chunk size | 2048 | 2048 |
 | `min_free_slots_delay` | 1 | 1 |
 
+The executable [measured Compose override](compose.measured.yaml) reproduces the current native NVMe/DDR5 allocation and scheduling configuration:
+
+```bash
+docker compose -f compose.yaml -f compose.measured.yaml up --build -d
+```
+
+This selects the measured configuration without changing the conservative default. DSpark block 5, bounded replay and the eight-slot admission fix are implemented in `boot.py`; the native row cache is implemented in `adapter/row_store.cpp`. The override configures 4.2M allocated tokens; it does not claim the pending 4M populated-capacity or quality gates have passed. B12x io_uring is not enabled by this override.
+
 The current candidate has **not finished long-context acceptance**. To reproduce its allocation settings after reviewing that limitation:
 
 ```bash

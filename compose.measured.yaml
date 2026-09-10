@@ -1,0 +1,10 @@
+services:
+  deepseek:
+    environment:
+      OFFLOAD_MODE: nvme
+      DSV41_CACHE_GIB: "64"
+      CONTEXT_LENGTH: "524288"
+      CHUNKED_PREFILL_SIZE: "2048"
+      MEMORY_FRACTION: "0.95"
+      MAX_RUNNING_REQUESTS: "8"
+      MAX_TOTAL_TOKENS: "4200000"
