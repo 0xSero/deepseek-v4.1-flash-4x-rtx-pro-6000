@@ -2,11 +2,11 @@
 
 Docker deployment for **four 96 GB RTX PRO 6000 Blackwell GPUs**, with native checkpoint precision, DSpark speculative decoding, native vision, and Engram offload to either NVMe or locked host RAM.
 
-**Experimental, with real inference evidence.** The underlying NVMe serving configuration has completed a 400,000-token input and six concurrent 350,000-token inputs. The distributable Docker wrapper is being qualified separately; do not confuse these runtime results with full release acceptance. Full-model RAM-mode performance and quality remain unverified.
+**Experimental, with real inference evidence.** The underlying NVMe serving configuration has completed a 400,000-token input and six concurrent 400,000-token inputs. The distributable Docker wrapper is being qualified separately; do not confuse these runtime results with full release acceptance. Full-model RAM-mode performance and quality remain unverified.
 
 ## What it does
 
-`docker compose up --build` downloads the pinned checkpoint, verifies every file against Hugging Face's SHA256/Git-blob hashes, compiles the storage adapter, starts TP4/EP4 inference, and requires a fresh arithmetic completion before reporting ready. Download and kernel caches persist across restarts. It never deletes other models or stops other containers.
+`docker compose up --build` downloads the pinned checkpoint, verifies every file against Hugging Face's SHA256/Git-blob hashes, compiles the storage adapter, starts TP4/EP4 inference, and requires fresh arithmetic, JSON schema, tool round-trip and native image completions before reporting ready. Download and kernel caches persist across restarts. It never deletes other models or stops other containers.
 
 The backbone and compressed KV cache stay on the GPUs. Engram table lookups preserve the original FP8 bytes and scale bytes; hashing, gating, projections, expert weights and tensor-parallel reduction retain their model behavior. This is **not an EXL3 conversion**. The source mixes FP4 routed experts, FP8/BF16 components, and FP8 Engram tables.
 
@@ -63,9 +63,25 @@ curl http://127.0.0.1:8010/v1/chat/completions \
 - DSpark is enabled with block size 5. Decode/verification CUDA graphs are used; prefill CUDA graphs are disabled by this runtime.
 - Native image input uses the OpenAI `image_url` content format. The checkpoint's full **1,024 image tokens per image** are retained. An actual 3,024×588 image consumed exactly 1,024 image tokens and was described correctly.
 - Explicit V4.1 reasoning and tool parsers are enabled. A real tool-call/result round trip and schema-constrained JSON passed in the reference deployment.
-- Native video/audio workflows are **not qualified**. Do not infer support from an OpenAI-compatible route or from successful image input.
+- Native video/audio workflows are **not qualified**. A six-image temporal-color fixture failed (reported only red instead of red, blue, green), so multi-image/video correctness remains unresolved. No auxiliary audio models are included.
 
-## Measurements and remaining gates
+## Measured total decode speed
+
+[Full 40-case table: prefill, total decode, per-request decode and overlap](results/INFERENCE-MATRIX.md).
+
+| Input × concurrent requests | Prefill tok/s | Total decode tok/s | Median decode tok/s/request |
+|---|---:|---:|---:|
+| 200k × 6 | 6,901 | 587 | 98 |
+| 400k × 1 | 6,129 | 167 | 167 |
+| 400k × 2 | 6,171 | 249 | 124 |
+| 400k × 4 | 6,169 | 425 | 106 |
+| 400k × 6 | 6,178 | 501 | 83 |
+
+Total decode counts actual emitted tokens over the same wall-clock interval for all streams; per-request rates use that interval too. Most C8 bursts never achieved eight-stream overlap, so their simultaneous total decode is left blank. All 40 request waves completed successfully. These synthetic speed tests are not quality scores.
+
+Six 400k streams reached **2,406,912 populated logical KV tokens** with CUDA graphs active, within an allocated pool of **2,865,664**. Their shared decoding interval lasted 11.69 seconds.
+
+## Additional measurements and remaining gates
 
 The tested native NVMe configuration uses the exact pinned source and runtime below. These are exploratory single-wave measurements, not a comprehensive quality study.
 
@@ -81,7 +97,7 @@ The tested native NVMe configuration uses the exact pinned source and runtime be
 
 The concurrency capacity test deliberately ignored EOS and generated 8,192 tokens per request to maintain occupancy. It proves capacity, **not output quality**. Long-input tests used a synthetic repeated archive and unique request prefixes. KV capacity refers to model-native compressed attention state, not a conventional dense KV representation.
 
-Still required: full Docker-wrapper end-to-end acceptance, full-table RAM-mode inference, repeated matched performance comparisons, representative quality/logit checks, remote RAM/NVFP4 comparisons, native or clearly labeled auxiliary video/audio workflows, and a one-hour soak. B12x passed standalone tests but is not used in this default serving path.
+Still required: full Docker-wrapper end-to-end acceptance, full-table RAM-mode inference, repeated matched performance comparisons, representative quality/logit checks, remote RAM/NVFP4 comparisons, multi-image/native modality qualification, and a one-hour soak. B12x passed standalone tests but is not used in this default serving path.
 
 ## Reproducibility and attribution
 
@@ -106,3 +122,11 @@ docker compose down
 Shutdown preserves the checkpoint, state directory and kernel cache. Restore your previous serving container using its own saved launch configuration.
 
 The matrix writes an incremental `TABLE.md`, JSON summaries and raw token/timing records under `state/matrix-<timestamp>/`. It sweeps 512, 2k, 8k, 32k, 64k, 128k, 200k and 400k inputs at requested concurrency 1/2/4/8. Override `PREFILL_SIZES` or `CONCURRENCIES` for another grid. It reports effective input throughput including queuing, a common emitted-token decode window, and observed client overlap; a queued burst is not labeled simultaneous decoding. Large matrices can take tens of minutes.
+
+To compute total decode from saved raw matrix events:
+
+```bash
+python3 benchmarks/common_window.py state/matrix-<timestamp>
+```
+
+This writes `TOTAL-DECODE-MATRIX.md` with total decode as a separate column. Published results describe the tested reference runtime; full Docker-wrapper launch validation remains pending.

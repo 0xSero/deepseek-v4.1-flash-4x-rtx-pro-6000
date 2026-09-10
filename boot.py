@@ -1,5 +1,7 @@
 """Pinned checkpoint download, integrity verification, serving and API acceptance."""
 import concurrent.futures
+import base64
+import io
 import hashlib
 import json
 import os
@@ -90,6 +92,45 @@ def smoke():
     assert choice['message']['content'].strip() == '42' and choice['finish_reason'] == 'stop', result
     save('smoke.json',result)
     print('Fresh inference passed: 19 + 23 = 42',flush=True)
+    common = dict(model='deepseek-v4.1-flash',temperature=0,
+                  chat_template_kwargs={'thinking':False})
+    structured = request('/v1/chat/completions',dict(common,
+        messages=[dict(role='user',content='Return an object whose answer is the integer 42.')],
+        response_format={'type':'json_schema','json_schema':{'name':'answer','strict':True,
+            'schema':{'type':'object','properties':{'answer':{'type':'integer'}},
+                      'required':['answer'],'additionalProperties':False}}}),timeout=300)
+    assert json.loads(structured['choices'][0]['message']['content']) == {'answer':42}
+    save('smoke-structured.json',structured)
+    tool = {'type':'function','function':{'name':'lookup_fixture',
+        'description':'Retrieve a stored test value.',
+        'parameters':{'type':'object','properties':{'key':{'type':'string'}},
+                      'required':['key'],'additionalProperties':False}}}
+    messages = [dict(role='user',content='Use lookup_fixture to retrieve the value for key alpha. Do not guess.')]
+    called = request('/v1/chat/completions',dict(common,messages=messages,tools=[tool]),timeout=300)
+    assistant = called['choices'][0]['message']
+    calls = assistant.get('tool_calls') or []
+    assert len(calls)==1 and calls[0]['function']['name']=='lookup_fixture', called
+    assert json.loads(calls[0]['function']['arguments']) == {'key':'alpha'}
+    messages += [assistant,dict(role='tool',tool_call_id=calls[0]['id'],content='{"value":42}')]
+    continued = request('/v1/chat/completions',dict(common,messages=messages,tools=[tool]),timeout=300)
+    assert '42' in continued['choices'][0]['message']['content'], continued
+    save('smoke-tools.json',{'call':called,'continuation':continued})
+    from PIL import Image,ImageDraw
+    image = Image.new('RGB',(3024,588),'white')
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((200,100,588,488),fill='red')
+    draw.rectangle((2400,100,2788,488),fill='blue')
+    buffer = io.BytesIO()
+    image.save(buffer,format='PNG')
+    visual = request('/v1/chat/completions',dict(common,messages=[dict(role='user',content=[
+        {'type':'text','text':'Describe the two colored shapes and their left-to-right order. Be concise.'},
+        {'type':'image_url','image_url':{'url':'data:image/png;base64,'+base64.b64encode(buffer.getvalue()).decode()}}
+    ])]),timeout=300)
+    text = visual['choices'][0]['message']['content'].lower()
+    assert all(word in text for word in ('red','circle','blue','square')), visual
+    assert visual['usage']['prompt_tokens_details']['image_tokens'] == 1024, visual
+    save('smoke-vision.json',visual)
+    print('Structured output, tool round trip and full-budget native vision passed.',flush=True)
 
 def serve():
     mode = os.environ.get('OFFLOAD_MODE','nvme')
