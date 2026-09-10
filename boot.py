@@ -18,6 +18,7 @@ REPO = 'deepseek-ai/DeepSeek-V4.1-Flash'
 REVISION = 'fb2764a5cf321eaa5070ca8f9e892818f477c16d'
 MODEL = Path(os.environ.get('MODEL_PATH','/models/DeepSeek-V4.1-Flash'))
 STATE = Path(os.environ.get('STATE_PATH','/state'))
+PORT = int(os.environ.get('SERVER_PORT','8010'))
 
 def save(name, value):
     STATE.mkdir(parents=True,exist_ok=True)
@@ -77,7 +78,7 @@ def key():
     return path.read_text().strip()
 
 def request(path,payload=None,timeout=10):
-    req = urllib.request.Request('http://127.0.0.1:8010'+path,
+    req = urllib.request.Request(f'http://127.0.0.1:{PORT}'+path,
         headers={'Authorization':'Bearer '+key(),'Content-Type':'application/json'},
         data=None if payload is None else json.dumps(payload).encode())
     with urllib.request.urlopen(req,timeout=timeout) as response:
@@ -154,7 +155,7 @@ def serve():
         '--context-length',str(context),'--max-running-requests','8','--cuda-graph-max-bs-decode','8',
         '--random-seed','0','--speculative-algorithm','DSPARK','--speculative-dspark-block-size','5',
         '--enable-decoder-swa-bounded-replay','--tool-call-parser','deepseekv41',
-        '--reasoning-parser','deepseek-v41','--host','0.0.0.0','--port','8010']
+        '--reasoning-parser','deepseek-v41','--host','0.0.0.0','--port',str(PORT)]
     save('launch.json',{'revision':REVISION,'offload_mode':mode,'args':args,'gpus':gpu})
     secret = key()
     env = dict(os.environ,DSV41_SOURCE=str(MODEL))
@@ -180,7 +181,7 @@ def serve():
         else:
             raise RuntimeError('Server failed to become healthy; inspect container logs')
         smoke()
-        print('Ready: authenticated API on port 8010. Key is in /state/api-key.',flush=True)
+        print(f'Ready: authenticated API on port {PORT}. Key is in /state/api-key.',flush=True)
         return process.wait()
     finally:
         stop()

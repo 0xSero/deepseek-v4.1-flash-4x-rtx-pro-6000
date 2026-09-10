@@ -2,7 +2,7 @@
 
 Docker deployment for **four 96 GB RTX PRO 6000 Blackwell GPUs**, with native checkpoint precision, DSpark speculative decoding, native vision, and Engram offload to either NVMe or locked host RAM.
 
-**Experimental, with real inference evidence.** The underlying NVMe serving configuration has completed a 400,000-token input and six concurrent 400,000-token inputs. The distributable Docker wrapper is being qualified separately; do not confuse these runtime results with full release acceptance. Full-model RAM-mode performance and quality remain unverified.
+**Experimental, with real inference evidence.** The underlying NVMe serving configuration has completed a 400,000-token input and six concurrent 400,000-token inputs. The Docker wrapper has now completed bootstrap and fresh arithmetic, structured JSON, tool round-trip and native-image checks through a controller-managed launch. A fresh controller-proxy arithmetic request also passed; these smoke checks are not comprehensive release acceptance. Full-model RAM-mode performance and quality remain unverified.
 
 ## What it does
 
@@ -97,7 +97,7 @@ The tested native NVMe configuration uses the exact pinned source and runtime be
 
 The concurrency capacity test deliberately ignored EOS and generated 8,192 tokens per request to maintain occupancy. It proves capacity, **not output quality**. Long-input tests used a synthetic repeated archive and unique request prefixes. KV capacity refers to model-native compressed attention state, not a conventional dense KV representation.
 
-Still required: full Docker-wrapper end-to-end acceptance, full-table RAM-mode inference, repeated matched performance comparisons, representative quality/logit checks, remote RAM/NVFP4 comparisons, multi-image/native modality qualification, and a one-hour soak. B12x passed standalone tests but is not used in this default serving path.
+Still required: full-table RAM-mode inference, repeated matched performance comparisons, representative quality/logit checks, remote RAM/NVFP4 comparisons, multi-image/native modality qualification, and a one-hour soak. B12x passed standalone tests but is not used in this default serving path.
 
 ## Reproducibility and attribution
 
@@ -129,4 +129,6 @@ To compute total decode from saved raw matrix events:
 python3 benchmarks/common_window.py state/matrix-<timestamp>
 ```
 
-This writes `TOTAL-DECODE-MATRIX.md` with total decode as a separate column. Published results describe the tested reference runtime; full Docker-wrapper launch validation remains pending.
+This writes `TOTAL-DECODE-MATRIX.md` with total decode as a separate column. Published performance results describe the original reference runtime. The Docker wrapper subsequently passed fresh functional inference checks; its full performance matrix has not been repeated.
+
+For controller integration, `SERVER_PORT` selects the server and health-check port (default `8010`). Match the container port mapping and controller proxy target to it. The tested Local Studio controller required `SERVER_PORT=8000` and recipe port `8000`; its proxy did not follow a recipe on port8010. The default Compose deployment continues to use8010.
