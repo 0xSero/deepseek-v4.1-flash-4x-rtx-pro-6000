@@ -1,0 +1,7 @@
+.env
+models/
+state/
+__pycache__/
+*.so
+*.pyc
+*.log

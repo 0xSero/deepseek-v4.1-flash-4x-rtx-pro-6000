@@ -1,0 +1,6 @@
+.git
+.env
+models
+state
+__pycache__
+*.log

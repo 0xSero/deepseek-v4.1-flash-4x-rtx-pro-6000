@@ -1,0 +1,17 @@
+name: Storage adapter parity
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile with warnings as errors
+        run: g++ -O2 -Wall -Wextra -Werror -std=c++17 -shared -fPIC -pthread adapter/row_store.cpp -o adapter/librow_store.so
+      - name: NVMe direct I/O, cache evictions and concurrent callers
+        run: OFFLOAD_MODE=nvme python3 tests/test_row_store.py
+      - name: Locked RAM byte parity
+        run: sudo prlimit --memlock=unlimited -- env OFFLOAD_MODE=ram python3 tests/test_row_store.py
+      - name: Python syntax
+        run: python3 -m compileall -q boot.py adapter tests benchmarks

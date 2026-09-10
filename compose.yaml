@@ -1,0 +1,22 @@
+services:
+  deepseek:
+    build: .
+    image: deepseek-v41-4x6000:local
+    gpus: all
+    ipc: host
+    cap_add: [IPC_LOCK]
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:8010:8010"
+    volumes:
+      - "${MODEL_DIRECTORY:-./models}:/models/DeepSeek-V4.1-Flash"
+      - "${STATE_DIRECTORY:-./state}:/state"
+      - kernel-cache:/root/.cache
+    environment:
+      OFFLOAD_MODE: "${OFFLOAD_MODE:-nvme}"
+      DSV41_CACHE_GIB: "${DSV41_CACHE_GIB:-64}"
+      CONTEXT_LENGTH: "${CONTEXT_LENGTH:-409600}"
+      API_KEY: "${API_KEY:-}"
+volumes:
+  kernel-cache:
