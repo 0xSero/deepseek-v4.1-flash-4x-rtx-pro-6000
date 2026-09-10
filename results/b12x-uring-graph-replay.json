@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "row_checks": 994560,
+  "graph_replays": 320,
+  "scope": "Native FP8 synthetic fixture, actual adapter host callback and upstream GPU gather; not real-checkpoint or model quality."
+}

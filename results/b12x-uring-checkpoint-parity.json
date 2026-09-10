@@ -1,0 +1,63 @@
+{
+  "passed": true,
+  "row_checks": 8192,
+  "cases": [
+    {
+      "layer": 1,
+      "rank": 0,
+      "row_checks": 1024,
+      "sample_sha256": "8a6b608f998ed4b6a4db4805c6d2655460dcd64cdfffcb60cbf580736dd6fe27",
+      "passed": true
+    },
+    {
+      "layer": 1,
+      "rank": 1,
+      "row_checks": 1024,
+      "sample_sha256": "b4d2fe8e2d59e08617634f8c54ad36745ff515fac54bb2ffea683e0830189f6c",
+      "passed": true
+    },
+    {
+      "layer": 1,
+      "rank": 2,
+      "row_checks": 1024,
+      "sample_sha256": "04fe56717d0ba1596dd085db1159f52074688ac8eaca1dc5398c2fb54df7b9c6",
+      "passed": true
+    },
+    {
+      "layer": 1,
+      "rank": 3,
+      "row_checks": 1024,
+      "sample_sha256": "e6433cd9b6bb6aeacf915b6dc52205d92442fba0b556400b8478658188d77909",
+      "passed": true
+    },
+    {
+      "layer": 14,
+      "rank": 0,
+      "row_checks": 1024,
+      "sample_sha256": "aecfef8afe255d38de8d8dee4b076915bb33369a6bc8a0155a130d948596ca09",
+      "passed": true
+    },
+    {
+      "layer": 14,
+      "rank": 1,
+      "row_checks": 1024,
+      "sample_sha256": "91edc9508e2e6ebc0c90edec36f84ec935a017181b66bb1f423bd4ece568fcfd",
+      "passed": true
+    },
+    {
+      "layer": 14,
+      "rank": 2,
+      "row_checks": 1024,
+      "sample_sha256": "7740ffcb5ecab57120ca33ddb8314252b6255892f0a58474236b6c70e674f7e1",
+      "passed": true
+    },
+    {
+      "layer": 14,
+      "rank": 3,
+      "row_checks": 1024,
+      "sample_sha256": "92bbc86f7320f9cd045d5adaf6f965b3bdee20c35686b3cb0f6c7df96777dc81",
+      "passed": true
+    }
+  ],
+  "scope": "Actual native checkpoint FP8 values and E8M0 scales versus independent pread, all Engram layers and TP ranks; no model quality or speed claim."
+}

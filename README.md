@@ -207,7 +207,9 @@ The next storage candidate reuses the [upstream B12x reader](https://github.com/
 | B12x candidate prerequisite probe | `io_uring_setup` succeeds with only three additional syscalls allowed; candidate image built with `liburing` | Running baseline unchanged |
 | B12x native reader bridge | **12,288 byte-parity checks passed** at queue depths 1/8/64, four TP ranks, native 256-byte rows plus 8-byte scales | [Receipt](results/b12x-uring-bridge-parity.json); synthetic CPU fixtures only, no graph/model acceptance yet |
 | B12x bounded DDR5 cache adapter | **36,864 native-layout byte checks passed**, including cache collisions, warm hits, TP ownership and concurrent callers | [Receipt](results/b12x-uring-cache-parity.json); CPU fixtures, no model throughput claim |
-| Assembled B12x adapter initialization | Native bytes and warm-cache behavior passed through the patched adapter constructor | [Receipt](results/b12x-uring-adapter-init.json); GPU callback replay and full inference remain pending |
+| Assembled B12x adapter initialization | Native bytes and warm-cache behavior passed through the patched adapter constructor | [Receipt](results/b12x-uring-adapter-init.json); GPU callback replay passed below; full inference remains pending |
+| Actual-checkpoint B12x reader | 8,192 row checks passed across both Engram layers and all four TP ranks | [Receipt](results/b12x-uring-checkpoint-parity.json); original FP8 values and E8M0 scales versus independent reads |
+| B12x GPU callback and graph replay | 320 graph replays and 994,560 synthetic row checks passed | [Receipt](results/b12x-uring-graph-replay.json); initial attempt hit OOM beside the occupied baseline, isolated rerun passed. Full-model quality and speed remain pending |
 | Native fully resident DDR5 | About 189 GiB needed before runtime headroom | Does not fit 128 GB host; not tested as a fabricated “RAM-only” result |
 
 ### Historical remote comparison — stopped
