@@ -99,7 +99,10 @@ docker compose run --rm --entrypoint python3 deepseek /opt/dsv41/tests/test_row_
 docker compose run --rm -e OFFLOAD_MODE=ram --entrypoint python3 deepseek /opt/dsv41/tests/test_row_store.py
 docker compose exec deepseek python3 /opt/dsv41/boot.py smoke
 docker compose exec deepseek python3 /opt/dsv41/benchmarks/sweep.py
+docker compose exec deepseek python3 /opt/dsv41/benchmarks/matrix.py
 docker compose down
 ```
 
 Shutdown preserves the checkpoint, state directory and kernel cache. Restore your previous serving container using its own saved launch configuration.
+
+The matrix writes an incremental `TABLE.md`, JSON summaries and raw token/timing records under `state/matrix-<timestamp>/`. It sweeps 512, 2k, 8k, 32k, 64k, 128k, 200k and 400k inputs at requested concurrency 1/2/4/8. Override `PREFILL_SIZES` or `CONCURRENCIES` for another grid. It reports effective input throughput including queuing, a common emitted-token decode window, and observed client overlap; a queued burst is not labeled simultaneous decoding. Large matrices can take tens of minutes.
