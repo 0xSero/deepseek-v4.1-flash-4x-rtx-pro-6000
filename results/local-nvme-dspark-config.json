@@ -1,6 +1,6 @@
 {
-  "status": "in-progress",
-  "completed_cases": 42,
+  "status": "sweep-complete; quality and deployment acceptance pending",
+  "completed_cases": 45,
   "planned_cases": 45,
   "model_revision": "fb2764a5cf321eaa5070ca8f9e892818f477c16d",
   "runtime_image": "sha256:6256f616ed5a848963ffeb31925ddea971c7faa7b21f6119e4ea8ae086b2f642",
@@ -19,6 +19,6 @@
   "output_tokens": 8192,
   "ignore_eos": true,
   "gpu_power_limit_watts": 275,
-  "four_million_populated_kv_verified": false,
+  "four_million_populated_kv_verified": true,
   "quality_acceptance": false
 }

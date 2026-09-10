@@ -13,7 +13,7 @@ This repository contains an end-to-end Docker launcher and measured inference re
 | Eight simultaneous slots | Shared generation demonstrated in the current sweep. The admission-delay fix keeps the eighth slot usable. |
 | 400k input | Earlier native runs retrieved three random codes correctly from 400k-token inputs. |
 | Populated GPU KV | Earlier native NVMe test reached **2,853,120 tokens with seven active requests**. |
-| 4M populated GPU KV | **Pending.** The current candidate caps the pool at 4.2M; allocation alone is not acceptance. |
+| 4M populated GPU KV | **Passed:** eight distinct 500k inputs completed 8,192 outputs each; peak 4,063,744 populated tokens, no prefix reuse or retractions. [Receipt](results/capacity-4000000.json). |
 | Text, JSON, tools | Fresh arithmetic, schema-constrained JSON and an actual tool-call/result round trip passed. Broader quality testing remains pending. |
 | Vision | Single-image inference passed at the checkpoint's full **1,024 image tokens/image**. Multi-image reliability is unresolved. |
 | Video | Six-frame temporal-color test failed. Do not treat video as supported by this release. |
@@ -72,7 +72,7 @@ The executable [measured Compose override](compose.measured.yaml) reproduces the
 docker compose -f compose.yaml -f compose.measured.yaml up --build -d
 ```
 
-This selects the measured configuration without changing the conservative default. DSpark block 5, bounded replay and the eight-slot admission fix are implemented in `boot.py`; the native row cache is implemented in `adapter/row_store.cpp`. The override configures 4.2M allocated tokens; it does not claim the pending 4M populated-capacity or quality gates have passed. B12x io_uring is not enabled by this override.
+This selects the measured configuration without changing the conservative default. DSpark block 5, bounded replay and the eight-slot admission fix are implemented in `boot.py`; the native row cache is implemented in `adapter/row_store.cpp`. The override configures 4.2M allocated tokens. The 4M populated-capacity gate passed; broader quality acceptance remains pending. B12x io_uring is not enabled by this override.
 
 The current candidate has **not finished long-context acceptance**. To reproduce its allocation settings after reviewing that limitation:
 
@@ -90,7 +90,7 @@ The launcher accepts context lengths from 400,000 through the model's published 
 
 ## 4. Current local speed sweep
 
-**42 of 45 cases completed in this snapshot.** All listed cases completed every request without reported errors. Remaining cases are pending. [Machine-readable results](results/local-nvme-dspark-summary.json) · [Configuration](results/local-nvme-dspark-config.json).
+**All 45 cases completed successfully.** Every request completed without reported errors; each case had a positive shared decode interval. [Machine-readable results](results/local-nvme-dspark-summary.json) · [Configuration](results/local-nvme-dspark-config.json).
 
 Each request uses 8,192 forced output tokens. Inputs contain repeated synthetic reference text with unique prefixes. These are performance tests, **not quality scores**. The same four GPUs were capped at 275 W each, connected over PCIe without NVLink.
 
@@ -143,6 +143,9 @@ Each request uses 8,192 forced output tokens. Inputs contain repeated synthetic 
 | 400,000 | 8 | 6,156.5 | **652.5** | 82.3 | 292.54 | 95.00 |
 | 500,000 | 1 | 5,844.5 | **212.4** | 212.4 | 85.55 | 38.57 |
 | 500,000 | 2 | 5,789.2 | **293.8** | 146.9 | 129.93 | 53.40 |
+| 500,000 | 4 | 5,854.1 | **467.3** | 116.6 | 213.94 | 67.25 |
+| 500,000 | 6 | 5,843.2 | **578.2** | 97.6 | 300.29 | 81.91 |
+| 500,000 | 8 | 5,834.8 | **599.7** | 75.1 | 386.09 | 105.58 |
 
 The complete grid is 512 / 2,048 / 8,192 / 32,768 / 65,536 / 131,072 / 200,000 / 400,000 / 500,000 input tokens at C1 / C2 / C4 / C6 / C8. The 4M gate requires eight distinct 500k inputs, shared continued generation, no prefix reuse or retractions, and matching runtime occupancy.
 
@@ -196,7 +199,7 @@ The next storage candidate reuses the [upstream B12x reader](https://github.com/
 | Uncapped 0.93 memory fraction | Allocated 7.62M logical slots; first generation failed on temporary attention-buffer allocation | Failed; reserved slots were not usable capacity |
 | 0.93, 4.2M cap, ten-slot remote trial | Nine requests overlapped; tenth queued; at least 3,656,704 populated tokens observed | Did not prove 4M; not the selected local setup |
 | Default DSpark admission delay | Left the final request slot idle until another request completed | Set `--min-free-slots-delay 1`; current local C8 overlap is measured above |
-| 0.95, 4.2M cap, eight local slots | Active sweep above | 4M acceptance pending |
+| 0.95, 4.2M cap, eight local slots | Eight × 500k; 4,063,744 populated tokens; 599.7 total decode tok/s; 105.58 s shared generation | Capacity passed; [receipt](results/capacity-4000000.json). Long-context answer quality remains unqualified. |
 | Larger 4096 prefill chunk / 0.88 trial | Failed near 399k input despite successful loading | Keep 2048 prefill chunks for this baseline |
 | B12x attention kernels | Standalone correctness/shape tests passed | Not yet accepted in full-model serving; default still uses the documented SM120 compatibility path |
 | Latest B12x NVMe reader | Upstream `01ac763` adds bounded `io_uring`, fixed buffers, page deduplication and coalesced reads | Priority local candidate; no full-model speed result yet |

@@ -1,0 +1,10 @@
+{
+  "candidate": "nvme-ddr5-dspark-c8",
+  "matrix": "/home/ser/deepseek-v41-work/matrix-20260910T142233",
+  "eight_stream_peak_runtime_tokens": 4063744,
+  "eight_500k_requests_completed": true,
+  "engine_confirms_distinct_prompts_without_retractions": true,
+  "shared_stream_seconds": 105.5773229249753,
+  "capacity_gate_passed": true,
+  "scope": "Capacity and completion only; does not establish long-context answer quality."
+}

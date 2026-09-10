@@ -1,6 +1,6 @@
 {
-  "scope": "published snapshot, not the later live sweep",
-  "observed_cells": 42,
+  "scope": "Completed 45-cell native NVMe sweep; not final deployment acceptance",
+  "observed_cells": 45,
   "planned_cells": 45,
   "checks": {
     "unique_cells": true,
@@ -14,10 +14,9 @@
   "missing_gates": [
     "repeated matched candidate runs",
     "paired real-workload quality",
-    "4000000 simultaneously populated KV receipt",
     "absolute latency SLA not specified",
     "video temporal correctness",
     "production controller and ZCode prompt acceptance"
   ],
-  "source_sha256": "0fe62b596720a652b622989a904f513fc9458a6cbb60ba443e67ef4e69b761cb"
+  "source_sha256": "6a64f70c685f788a430b8f88a9873f574d7ee3e4390cc44665104a558df3f4e5"
 }
