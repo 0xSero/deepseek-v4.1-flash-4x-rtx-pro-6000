@@ -152,6 +152,8 @@ These are client-observed gaps between positive output bursts, not individual-to
 
 Host telemetry is being recorded. Swappiness was 180, with some inference-process pages already swapped after loading; short samples did not show growing inference swap. This does not establish a causal bottleneck. Cache behavior, host memory, attention workspace and B12x are candidates for controlled local tuning after the baseline sweep.
 
+The next storage candidate reuses the [upstream B12x reader](https://github.com/local-inference-lab/b12x/blob/01ac763bef7503d934c4c2874bfd005799ca24a1/b12x/loader/_ple_reader.c). Its configurable native byte reader can represent the checkpoint's 256-byte FP8 rows plus 8-byte E8M0 scale rows. The high-level PLE wrapper has different quantization and graph-capture contracts, so it cannot simply replace DeepSeek's embedding module. Integration must retain native row/scaling semantics, the DDR5 cache and DSpark graph replay, then pass parity and matched inference sweeps.
+
 ## 5. Experiment history
 
 ### Capacity and runtime experiments
@@ -167,6 +169,8 @@ Host telemetry is being recorded. Swappiness was 180, with some inference-proces
 | 0.95, 4.2M cap, eight local slots | Active sweep above | 4M acceptance pending |
 | Larger 4096 prefill chunk / 0.88 trial | Failed near 399k input despite successful loading | Keep 2048 prefill chunks for this baseline |
 | B12x attention kernels | Standalone correctness/shape tests passed | Not yet accepted in full-model serving; default still uses the documented SM120 compatibility path |
+| Latest B12x NVMe reader | Upstream `01ac763` adds bounded `io_uring`, fixed buffers, page deduplication and coalesced reads | Priority local candidate; no full-model speed result yet |
+| B12x reader prerequisites in current image | `io_uring_setup` returned EPERM; `liburing` development package is absent | Candidate needs the dependency and a scoped container syscall policy before testing |
 | Native fully resident DDR5 | About 189 GiB needed before runtime headroom | Does not fit 128 GB host; not tested as a fabricated “RAM-only” result |
 
 ### Historical remote comparison — stopped
