@@ -82,7 +82,7 @@ The launcher accepts context lengths from 400,000 through the model's published 
 
 ## 4. Current local speed sweep
 
-**39 of 45 cases completed in this snapshot.** All listed cases completed every request without reported errors. Remaining cases are pending. [Machine-readable results](results/local-nvme-dspark-summary.json) · [Configuration](results/local-nvme-dspark-config.json).
+**42 of 45 cases completed in this snapshot.** All listed cases completed every request without reported errors. Remaining cases are pending. [Machine-readable results](results/local-nvme-dspark-summary.json) · [Configuration](results/local-nvme-dspark-config.json).
 
 Each request uses 8,192 forced output tokens. Inputs contain repeated synthetic reference text with unique prefixes. These are performance tests, **not quality scores**. The same four GPUs were capped at 275 W each, connected over PCIe without NVLink.
 
@@ -132,6 +132,9 @@ Each request uses 8,192 forced output tokens. Inputs contain repeated synthetic 
 | 400,000 | 2 | 6,162.6 | **347.6** | 173.8 | 97.56 | 47.08 |
 | 400,000 | 4 | 6,165.5 | **506.1** | 126.9 | 162.73 | 63.58 |
 | 400,000 | 6 | 6,173.8 | **596.4** | 101.2 | 227.11 | 77.36 |
+| 400,000 | 8 | 6,156.5 | **652.5** | 82.3 | 292.54 | 95.00 |
+| 500,000 | 1 | 5,844.5 | **212.4** | 212.4 | 85.55 | 38.57 |
+| 500,000 | 2 | 5,789.2 | **293.8** | 146.9 | 129.93 | 53.40 |
 
 The complete grid is 512 / 2,048 / 8,192 / 32,768 / 65,536 / 131,072 / 200,000 / 400,000 / 500,000 input tokens at C1 / C2 / C4 / C6 / C8. The 4M gate requires eight distinct 500k inputs, shared continued generation, no prefix reuse or retractions, and matching runtime occupancy.
 

@@ -1,6 +1,6 @@
 {
   "scope": "published snapshot, not the later live sweep",
-  "observed_cells": 39,
+  "observed_cells": 42,
   "planned_cells": 45,
   "checks": {
     "unique_cells": true,
@@ -19,5 +19,5 @@
     "video temporal correctness",
     "production controller and ZCode prompt acceptance"
   ],
-  "source_sha256": "84552c683c7ad5b43b3d0813aa8cd7094e2bd7b01a3a85334999a75b25fecbac"
+  "source_sha256": "0fe62b596720a652b622989a904f513fc9458a6cbb60ba443e67ef4e69b761cb"
 }
